@@ -18,6 +18,9 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Filament\Facades\Filament;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -28,7 +31,6 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
-
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -56,5 +58,21 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ]);
+    }
+
+    public function boot(): void
+    {
+        // Ejecutar el comando PostgreSQL en cada request de Filament
+        Filament::serving(function () {
+            if (Auth::check()) {
+                $userId = Auth::id();
+                try {
+                    DB::statement("SELECT set_config('myapp.current_user_id', ?, false)", [$userId]);
+                    \Log::info("PostgreSQL current_user_id set to: " . $userId);
+                } catch (\Exception $e) {
+                    \Log::error("Error setting PostgreSQL current_user_id: " . $e->getMessage());
+                }
+            }
+        });
     }
 }
