@@ -1,6 +1,9 @@
 Para solucionar errores de duplicado en el pull
+
 git fetch origin
+
 git checkout Alejandro
+
 git reset --hard origin/Alejandro
 
 
