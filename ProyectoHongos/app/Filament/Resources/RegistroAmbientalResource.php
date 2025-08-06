@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\CosechaResource\Pages;
-use App\Filament\Resources\CosechaResource\RelationManagers;
-use App\Models\Cosecha;
+use App\Filament\Resources\RegistroAmbientalResource\Pages;
+use App\Filament\Resources\RegistroAmbientalResource\RelationManagers;
+use App\Models\RegistroAmbiental;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -13,11 +13,9 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class CosechaResource extends Resource
+class RegistroAmbientalResource extends Resource
 {
-    protected static ?string $model = Cosecha::class;
-
-        protected static ?string $navigationGroup = 'Cultivo';
+    protected static ?string $model = RegistroAmbiental::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
@@ -25,18 +23,15 @@ class CosechaResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('unidad_id')
+                Forms\Components\TextInput::make('sala_id')
                     ->required()
                     ->numeric(),
-                Forms\Components\TextInput::make('numero_cosecha')
-                    ->required()
+                Forms\Components\DateTimePicker::make('fecha_hora'),
+                Forms\Components\TextInput::make('temperatura_celsius')
                     ->numeric(),
-                Forms\Components\DatePicker::make('fecha_cosecha')
-                    ->required(),
-                Forms\Components\TextInput::make('peso_cosecha_gramos')
-                    ->required()
+                Forms\Components\TextInput::make('humedad_relativa')
                     ->numeric(),
-                Forms\Components\TextInput::make('eficiencia_biologica_calculada')
+                Forms\Components\TextInput::make('co2_ppm')
                     ->numeric(),
             ]);
     }
@@ -45,19 +40,19 @@ class CosechaResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('unidad_id')
+                Tables\Columns\TextColumn::make('sala_id')
                     ->numeric()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('numero_cosecha')
+                Tables\Columns\TextColumn::make('fecha_hora')
+                    ->dateTime()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('temperatura_celsius')
                     ->numeric()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('fecha_cosecha')
-                    ->date()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('peso_cosecha_gramos')
+                Tables\Columns\TextColumn::make('humedad_relativa')
                     ->numeric()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('eficiencia_biologica_calculada')
+                Tables\Columns\TextColumn::make('co2_ppm')
                     ->numeric()
                     ->sortable(),
             ])
@@ -84,9 +79,9 @@ class CosechaResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCosechas::route('/'),
-            'create' => Pages\CreateCosecha::route('/create'),
-            'edit' => Pages\EditCosecha::route('/{record}/edit'),
+            'index' => Pages\ListRegistroAmbientals::route('/'),
+            'create' => Pages\CreateRegistroAmbiental::route('/create'),
+            'edit' => Pages\EditRegistroAmbiental::route('/{record}/edit'),
         ];
     }
 }
