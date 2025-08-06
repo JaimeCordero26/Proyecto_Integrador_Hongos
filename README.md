@@ -1,5 +1,15 @@
 .env 
 Para usar la base de datos local 
+
+php artisan clear
+php artisan cache:clear
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+php artisan optimize:clear
+
+
+
 1. Descargar el script de: https://limewire.com/d/J3Cue#101VxcbqoB Y correrlo en psql local
 2. Crear un usuario en la bd y hashear la contraseña en 2y con el comando (Cambiar el espacio CONTRASEÑA A HASHEAR por la contraseña): php -r "echo preg_replace('/^\$2b\$/', '\$2y\$', password_hash('CONTRASEÑA A HASHEAR', PASSWORD_BCRYPT));"
 3. Hacer un update del usuario creado cambiando la contraseña por el hash de la misma
