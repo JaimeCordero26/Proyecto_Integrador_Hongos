@@ -11,7 +11,6 @@ Para usar en la base de datos web
 2. Asegurarse de que todos los atributos de PostgreSQL Local estén comentados
 3. Asegurarse de que DB_URL NO esté comentado
 
-
 APP_NAME=Laravel
 APP_ENV=local
 APP_KEY=base64:ZMtgIc0JEmqZ16i5iozMwbd4idr+9p7XY3ljvxOvHzE=
@@ -23,16 +22,14 @@ APP_FALLBACK_LOCALE=en
 LOG_CHANNEL=stack
 LOG_LEVEL=debug
 
-# PostgreSQL Render
-DB_CONNECTION=pgsql
-DB_URL=postgresql://root:rtw55K2VVIxtQJbGk3tu95MrUZTeDC37@dpg-d259dl63jp1c73d3p9vg-a.virginia-postgres.render.com/proyectointegradorbd
-
 # PostgreSQL Local
-#DB_HOST=127.0.0.1
-#DB_PORT=5432
-#DB_DATABASE=prueba
-#DB_USERNAME=postgres
-#DB_PASSWORD=
+DB_CONNECTION=pgsql
+#DB_URL=postgresql://root:rtw55K2VVIxtQJbGk3tu95MrUZTeDC37@dpg-d259dl63jp1c73d3p9vg-a.virginia-postgres.render.com/proyectointegradorbd
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=prueba
+DB_USERNAME=postgres
+DB_PASSWORD=
 
 SESSION_DRIVER=file
 QUEUE_CONNECTION=sync
@@ -42,4 +39,3 @@ SESSION_LIFETIME=120
 SESSION_ENCRYPT=false
 SESSION_PATH=/
 SESSION_DOMAIN=null
-APP_KEY=base64:ZMtgIc0JEmqZ16i5iozMwbd4idr+9p7XY3ljvxOvHzE=
