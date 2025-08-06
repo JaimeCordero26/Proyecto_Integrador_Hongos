@@ -53,14 +53,24 @@ class InventarioLaboratorioResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('nombre_item')->sortable()->searchable(),
-                Tables\Columns\TextColumn::make('descripcion')->limit(30),
-                Tables\Columns\TextColumn::make('cantidad_total')->sortable(),
-                Tables\Columns\TextColumn::make('cantidad_disponible')->sortable(),
-                Tables\Columns\TextColumn::make('ubicacion')->sortable(),
-                Tables\Columns\TextColumn::make('estado_item')->sortable(),
+                Tables\Columns\TextColumn::make('nombre_item')->numeric()->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('descripcion')->limit(30)->numeric()->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('cantidad_total')->numeric()->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('cantidad_disponible')->numeric()->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('ubicacion')->numeric()->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('estado_item')->numeric()->searchable()->sortable(),
             ])
-            ->defaultSort('item_id', 'asc');
+            ->filters([
+                //
+            ])
+            ->actions([
+                Tables\Actions\EditAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
     }
 
     public static function getPages(): array

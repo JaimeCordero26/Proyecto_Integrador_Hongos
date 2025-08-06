@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Filament\Resources\InventarioLaboratorioResource\Pages;
+namespace App\Filament\Resources\SalasCultivoResource\Pages;
 
-use App\Filament\Resources\InventarioLaboratorioResource;
+use App\Filament\Resources\SalasCultivoResource;
 use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
 
-class CreateInventarioLaboratorio extends CreateRecord
+class CreateSalasCultivo extends CreateRecord
 {
-    protected static string $resource = InventarioLaboratorioResource::class;
+    protected static string $resource = SalasCultivoResource::class;
     
     protected function getRedirectUrl(): string
     {
