@@ -2,22 +2,22 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Resources\InventarioLaboratorioResource\Pages;
+use App\Filament\Resources\InventarioLaboratorioResource\RelationManagers;
 use App\Models\InventarioLaboratorio;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use App\Filament\Resources\InventarioLaboratorioResource\Pages;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class InventarioLaboratorioResource extends Resource
 {
     protected static ?string $model = InventarioLaboratorio::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-archive-box';
-    protected static ?string $navigationGroup = 'Administración';
-    protected static ?string $navigationLabel = 'Inventario Laboratorios';
-    protected static ?string $pluralModelLabel = 'Inventario Laboratorios';
+    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
     public static function form(Form $form): Form
     {
@@ -26,26 +26,19 @@ class InventarioLaboratorioResource extends Resource
                 Forms\Components\TextInput::make('nombre_item')
                     ->required()
                     ->maxLength(255),
-
                 Forms\Components\Textarea::make('descripcion')
-                    ->rows(3)
-                    ->maxLength(500),
-
+                    ->columnSpanFull(),
                 Forms\Components\TextInput::make('cantidad_total')
-                    ->numeric()
-                    ->required(),
-
-                Forms\Components\TextInput::make('cantidad_disponible')
-                    ->numeric()
-                    ->required(),
-
-                Forms\Components\TextInput::make('ubicacion')
                     ->required()
+                    ->numeric(),
+                Forms\Components\TextInput::make('cantidad_disponible')
+                    ->required()
+                    ->numeric(),
+                Forms\Components\TextInput::make('ubicacion')
                     ->maxLength(255),
-
                 Forms\Components\TextInput::make('estado_item')
                     ->required()
-                    ->maxLength(100),
+                    ->maxLength(255),
             ]);
     }
 
@@ -53,12 +46,18 @@ class InventarioLaboratorioResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('nombre_item')->numeric()->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('descripcion')->limit(30)->numeric()->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('cantidad_total')->numeric()->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('cantidad_disponible')->numeric()->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('ubicacion')->numeric()->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('estado_item')->numeric()->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('nombre_item')
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('cantidad_total')
+                    ->numeric()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('cantidad_disponible')
+                    ->numeric()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('ubicacion')
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('estado_item')
+                    ->searchable(),
             ])
             ->filters([
                 //
@@ -71,6 +70,13 @@ class InventarioLaboratorioResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
     }
 
     public static function getPages(): array
