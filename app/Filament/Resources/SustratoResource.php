@@ -1,0 +1,71 @@
+<?php
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\SustratoResource\Pages;
+use App\Filament\Resources\SustratoResource\RelationManagers;
+use App\Models\Sustrato;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+
+class SustratoResource extends Resource
+{
+    protected static ?string $model = Sustrato::class;
+
+    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+
+    public static function form(Form $form): Form
+    {
+        return $form
+            ->schema([
+                Forms\Components\TextInput::make('nombre_sustrato')
+                    ->required()
+                    ->maxLength(255),
+                Forms\Components\Textarea::make('descripcion')
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('nombre_sustrato')
+                    ->searchable(),
+            ])
+            ->filters([
+                //
+            ])
+            ->actions([
+                Tables\Actions\ViewAction::make(),
+                Tables\Actions\EditAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListSustratos::route('/'),
+            'create' => Pages\CreateSustrato::route('/create'),
+            'view' => Pages\ViewSustrato::route('/{record}'),
+            'edit' => Pages\EditSustrato::route('/{record}/edit'),
+        ];
+    }
+}
