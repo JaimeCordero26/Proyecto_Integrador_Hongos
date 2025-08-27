@@ -30,8 +30,11 @@ class SolicitudProcuraduriaResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('item_id')
-                    ->numeric(),
+                Forms\Components\Select::make('item_id') // <-- Cambiado a Select para un combobox
+                    ->label('Item de Inventario')
+                    ->relationship('item', 'nombre_item')
+                    ->searchable()
+                    ->preload(),
                 Forms\Components\TextInput::make('descripcion_item_nuevo')
                     ->maxLength(255),
                 Forms\Components\Select::make('usuario_solicitante_id')

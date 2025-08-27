@@ -54,6 +54,10 @@ class InventarioLaboratorioResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('item_id') // <-- Se ha agregado esta columna
+                    ->label('ID de Item')
+                    ->sortable()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('nombre_item')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('cantidad_total')

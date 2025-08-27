@@ -30,9 +30,9 @@ class SolicitudProcuraduria extends Model
     ];
 
     /**
-     * Relación con InventarioLaboratorio (opcional)
+     * Relación con InventarioLaboratorio
      */
-    public function inventarioLaboratorio(): BelongsTo
+    public function item(): BelongsTo
     {
         return $this->belongsTo(InventarioLaboratorio::class, 'item_id', 'item_id');
     }

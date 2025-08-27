@@ -19,6 +19,7 @@ class RegistroAmbientalResource extends Resource
         use HasCrudPermissions;
 
         protected static string $permPrefix = 'registro_ambiental';
+        protected static ?string $navigationLabel = 'Registros ambientales';
     protected static ?string $model = RegistroAmbiental::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-sparkles';

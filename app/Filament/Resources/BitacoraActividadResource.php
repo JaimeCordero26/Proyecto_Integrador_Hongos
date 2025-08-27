@@ -22,6 +22,8 @@ class BitacoraActividadResource extends Resource
     protected static string $permPrefix = 'bitacora_actividad';
     protected static ?string $model = BitacoraActividad::class;
 
+    protected static ?string $navigationLabel = 'Bitacora actividades';
+
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
 
     protected static ?string $navigationGroup = 'Administración';
