@@ -18,8 +18,12 @@ class ProcesoEsterilizacionResource extends Resource
 {
         use HasCrudPermissions;
 
+            protected static ?string $navigationGroup = 'Administración';
+
+
         protected static string $permPrefix = 'proceso_esterilizacion';
 
+                protected static ?string $pluralModelLabel = "Procesos de esterilización";
     protected static ?string $model = ProcesoEsterilizacion::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';

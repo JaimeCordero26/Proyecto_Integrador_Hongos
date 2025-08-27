@@ -2,37 +2,47 @@
 
 namespace App\Filament\Resources;
 
-use Filament\Forms;
-use Filament\Tables;
-use Filament\Forms\Form;
-use Filament\Tables\Table;
-use App\Models\UnidadProduccion;
-use Filament\Resources\Resource;
-use Illuminate\Database\Eloquent\Builder;
-use App\Filament\Support\HasCrudPermissions;
-
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\UnidadProduccionResource\Pages;
 use App\Filament\Resources\UnidadProduccionResource\RelationManagers;
+use App\Models\UnidadProduccion;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+use App\Filament\Support\HasCrudPermissions;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class UnidadProduccionResource extends Resource
 {
-        use HasCrudPermissions;
+            use HasCrudPermissions;
+
+                protected static ?string $navigationGroup = 'Cultivo';
+
 
         protected static string $permPrefix = 'unidad_produccion';
 
     protected static ?string $model = UnidadProduccion::class;
+    
+    protected static ?string $navigationLabel = "Unidades de Producción";
 
+    protected static ?string $pluralModelLabel = 'Unidades de Producción';    
+    
     protected static ?string $navigationIcon = 'heroicon-o-squares-2x2';
 
-        protected static ?string $navigationGroup = 'Cultivo';
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('lote_id')
-                    ->required()
-                    ->numeric(),
+                Forms\Components\Select::make('lote_id')
+    ->relationship('loteProduccion', 'lote_id')
+    ->getOptionLabelFromRecordUsing(fn ($record) => "Lote {$record->lote_id}")
+    ->searchable()
+    ->required()
+    ->placeholder('Selecciona un lote')
+    ->preload(),
+  
                 Forms\Components\TextInput::make('codigo_unidad')
                     ->required()
                     ->maxLength(255),

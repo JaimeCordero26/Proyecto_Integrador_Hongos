@@ -69,4 +69,44 @@ class Cosecha extends Model
     {
         return $query->where('fecha_cosecha', '>=', now()->subDays($dias));
     }
+
+    /**
+     * Calculates the biological efficiency for this harvest.
+     * The formula is (fresh mushroom weight in kg / dry substrate weight in kg) * 100.
+     * This method automatically converts grams to kilograms.
+     *
+     * @return float The calculated biological efficiency percentage.
+     */
+    public function calcularEficienciaBiologica(): float
+    {
+        // 1. Get the fresh mushroom weight in grams and convert to kilograms.
+        $pesoHongosKg = $this->peso_cosecha_gramos / 1000;
+
+        // 2. Get the dry substrate weight from the related Production Lot.
+        //    It follows the relationship from Cosecha -> UnidadProduccion -> LoteProduccion.
+        $pesoSustratoSecoKg = $this->unidadProduccion->loteProduccion->peso_sustrato_seco_kg ?? 0;
+
+        // 3. Avoid division by zero.
+        if ($pesoSustratoSecoKg <= 0) {
+            return 0.0;
+        }
+
+        // 4. Apply the biological efficiency formula.
+        return ($pesoHongosKg / $pesoSustratoSecoKg) * 100;
+    }
+
+    /**
+     * The "booting" method of the model.
+     * It automatically calculates the biological efficiency before saving the record.
+     *
+     * @return void
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::saving(function ($cosecha) {
+            $cosecha->eficiencia_biologica_calculada = $cosecha->calcularEficienciaBiologica();
+        });
+    }
 }

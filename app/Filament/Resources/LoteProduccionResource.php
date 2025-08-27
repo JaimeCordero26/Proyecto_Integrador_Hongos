@@ -8,9 +8,7 @@ use Filament\Forms\Form;
 use Filament\Tables\Table;
 use App\Models\LoteProduccion;
 use Filament\Resources\Resource;
-use Illuminate\Database\Eloquent\Builder;
 use App\Filament\Support\HasCrudPermissions;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\LoteProduccionResource\Pages;
 use App\Filament\Resources\LoteProduccionResource\RelationManagers;
 
@@ -18,12 +16,14 @@ class LoteProduccionResource extends Resource
 {
         use HasCrudPermissions;
 
-        protected static string $permPrefix = 'lote_produccion';
-    protected static ?string $model = LoteProduccion::class;
+    protected static ?string $navigationGroup = 'Cultivo';
 
+    protected static string $permPrefix = 'lote_produccion';
+    protected static ?string $model = LoteProduccion::class;    
+    public static ?string $pluralModelLabel = "Lotes en producción";
+    public static ?string $navigationLabel = "Lotes en producción";
     protected static ?string $navigationIcon = 'heroicon-o-cube';
 
-        protected static ?string $navigationGroup = 'Cultivo';
     public static function form(Form $form): Form
     {
         return $form
@@ -37,8 +37,17 @@ class LoteProduccionResource extends Resource
                 Forms\Components\Select::make('proceso_esterilizacion_id')
                     ->relationship('procesoEsterilizacion', 'proceso_id')
                     ->required(),
-                Forms\Components\TextInput::make('sala_id')
-                    ->numeric(),
+                Forms\Components\TextInput::make('peso_sustrato_seco_kg')
+                    ->label('Peso Sustrato (kg)')
+                    ->numeric()
+                    ->step(0.01)
+                    ->suffix('kg')
+                    ->required(),
+                Forms\Components\Select::make('sala_id')
+                ->relationship('salaCultivo', 'sala_id')
+                    ->searchable()
+                    ->preload()
+                    ->required(),
                 Forms\Components\Select::make('usuario_creador_id')
                     ->relationship('usuarioCreador', 'usuario_id')
                     ->required(),
@@ -46,7 +55,7 @@ class LoteProduccionResource extends Resource
                 Forms\Components\Textarea::make('metodologia_inoculacion')
                     ->columnSpanFull(),
                 Forms\Components\Textarea::make('notas_generales_lote')
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
             ]);
     }
 
@@ -54,6 +63,12 @@ class LoteProduccionResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('id_lote')
+                ->label('ID')
+                ->getStateUsing(fn ($record) => $record->lote_id)
+
+                ->sortable()
+                ->numeric(),
                 Tables\Columns\TextColumn::make('cepa.cepa_id')
                     ->numeric()
                     ->sortable(),
@@ -61,6 +76,10 @@ class LoteProduccionResource extends Resource
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('procesoEsterilizacion.proceso_id')
+                    ->numeric()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('peso_sustrato_seco_kg')
+                    ->label('Peso Sustrato (kg)')
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('sala_id')

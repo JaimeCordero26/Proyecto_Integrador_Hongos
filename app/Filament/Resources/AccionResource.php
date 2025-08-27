@@ -12,17 +12,21 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use App\Filament\Support\HasCrudPermissions;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class AccionResource extends Resource
 {
     use HasCrudPermissions;
-    protected static ?string $model = Accion::class;
-
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
-    protected static ?string $navigationGroup = 'Auditoría';
 
     protected static string $permPrefix = 'accion';
+
+        protected static ?string $navigationGroup = 'Auditoría';
+
+
+    protected static ?string $model = Accion::class;
+    protected static ?string $navigationLabel = "Acciones";
+    protected static ?string $modelLabel = "Acciones";
+    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
+
     public static function form(Form $form): Form
     {
         return $form
@@ -69,7 +73,6 @@ class AccionResource extends Resource
             Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('accion.eliminar') ?? false),
         ]);
     }
-
 
     public static function getRelations(): array
     {
