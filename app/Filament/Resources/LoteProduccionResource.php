@@ -2,23 +2,28 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Forms;
+use Filament\Tables;
+use Filament\Forms\Form;
+use Filament\Tables\Table;
+use App\Models\LoteProduccion;
+use Filament\Resources\Resource;
+use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Support\HasCrudPermissions;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\LoteProduccionResource\Pages;
 use App\Filament\Resources\LoteProduccionResource\RelationManagers;
-use App\Models\LoteProduccion;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Resources\Resource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LoteProduccionResource extends Resource
 {
+        use HasCrudPermissions;
+
+        protected static string $permPrefix = 'lote_produccion';
     protected static ?string $model = LoteProduccion::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-cube';
 
+        protected static ?string $navigationGroup = 'Cultivo';
     public static function form(Form $form): Form
     {
         return $form
@@ -70,16 +75,13 @@ class LoteProduccionResource extends Resource
             ])
             ->filters([
                 //
-            ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ]);
+        ])->actions([
+            Tables\Actions\ViewAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_produccion.ver') ?? false),
+            Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_produccion.editar') ?? false),
+            Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_produccion.eliminar') ?? false),
+        ])->bulkActions([
+            Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_produccion.eliminar') ?? false),
+        ]);
     }
 
     public static function getRelations(): array

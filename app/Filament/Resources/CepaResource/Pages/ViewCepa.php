@@ -10,10 +10,16 @@ class ViewCepa extends ViewRecord
 {
     protected static string $resource = CepaResource::class;
 
+    protected function canView($record): bool
+    {
+        return auth()->user()?->tienePermiso('cepa.ver') ?? false;
+    }
+
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make(),
+            Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('cepa.editar') ?? false),
+            Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('cepa.eliminar') ?? false),
         ];
     }
 }

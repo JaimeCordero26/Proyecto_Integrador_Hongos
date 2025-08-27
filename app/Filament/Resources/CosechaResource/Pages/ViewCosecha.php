@@ -10,10 +10,16 @@ class ViewCosecha extends ViewRecord
 {
     protected static string $resource = CosechaResource::class;
 
+    protected function canView($record): bool
+    {
+        return auth()->user()?->tienePermiso('cosecha.ver') ?? false;
+    }
+
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make(),
+            Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('cosecha.editar') ?? false),
+            Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('cosecha.eliminar') ?? false),
         ];
     }
 }

@@ -2,23 +2,31 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Forms;
+use Filament\Tables;
+use Filament\Forms\Form;
+use Filament\Tables\Table;
+use Filament\Resources\Resource;
+use App\Models\TipoContaminacion;
+use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Support\HasCrudPermissions;
+
+
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\TipoContaminacionResource\Pages;
 use App\Filament\Resources\TipoContaminacionResource\RelationManagers;
-use App\Models\TipoContaminacion;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Resources\Resource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class TipoContaminacionResource extends Resource
 {
+        use HasCrudPermissions;
+
+        protected static string $permPrefix = 'tipo_contaminacion';
+
     protected static ?string $model = TipoContaminacion::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
 
+        protected static ?string $navigationGroup = 'Cultivo';
     public static function form(Form $form): Form
     {
         return $form
@@ -42,16 +50,13 @@ class TipoContaminacionResource extends Resource
             ])
             ->filters([
                 //
-            ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ]);
+        ])->actions([
+            Tables\Actions\ViewAction::make()->visible(fn() => auth()->user()?->tienePermiso('tipo_contaminacion.ver') ?? false),
+            Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('tipo_contaminacion.editar') ?? false),
+            Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('tipo_contaminacion.eliminar') ?? false),
+        ])->bulkActions([
+            Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('tipo_contaminacion.eliminar') ?? false),
+        ]);
     }
 
     public static function getRelations(): array

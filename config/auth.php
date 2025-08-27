@@ -9,25 +9,20 @@ return [
     'guards' => [
         'web' => [
             'driver' => 'session',
-            'provider' => 'usuarios', // Cambiar a tu provider personalizado
+            'provider' => 'usuarios',
         ],
     ],
 
     'providers' => [
         'usuarios' => [
             'driver' => 'eloquent',
-            'model' => App\Models\Usuario::class, // Tu modelo personalizado
-        ],
-        
-        'users' => [
-            'driver' => 'eloquent',
-            'model' => App\Models\User::class,
+            'model' => App\Models\Usuario::class,
         ],
     ],
 
     'passwords' => [
-        'users' => [
-            'provider' => 'usuarios', // Cambiar a tu provider
+        'usuarios' => [
+            'provider' => 'usuarios',
             'table' => 'password_reset_tokens',
             'expire' => 60,
             'throttle' => 60,

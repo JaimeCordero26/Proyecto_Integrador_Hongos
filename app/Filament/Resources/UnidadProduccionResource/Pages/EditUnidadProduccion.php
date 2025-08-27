@@ -13,8 +13,12 @@ class EditUnidadProduccion extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\ViewAction::make(),
-            Actions\DeleteAction::make(),
+            Actions\DeleteAction::make()->visible(fn () => auth()->user()?->tienePermiso('unidad_produccion.eliminar') ?? false),
         ];
+    }
+
+    protected function canEdit($record): bool
+    {
+        return auth()->user()?->tienePermiso('unidad_produccion.editar') ?? false;
     }
 }

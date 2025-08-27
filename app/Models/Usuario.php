@@ -7,10 +7,9 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
+use Filament\Models\Contracts\FilamentUser;
 
-
-
-class Usuario extends Authenticatable
+class Usuario extends Authenticatable implements FilamentUser
 {
     use Notifiable;
 
@@ -35,10 +34,9 @@ class Usuario extends Authenticatable
         'activo' => 'boolean',
     ];
 
-    // CRITICAL: Mapear los campos de autenticación
     public function getAuthIdentifierName()
     {
-        return 'email'; // Campo para identificar usuario
+        return 'email';
     }
 
     public function getAuthIdentifier()
@@ -49,7 +47,6 @@ class Usuario extends Authenticatable
     public function getAuthPassword()
     {
         $hash = $this->password_hash;
-        // Convertir $2b$ a $2y$ para compatibilidad con PHP
         if (substr($hash, 0, 4) === '$2b$') {
             $hash = '$2y$' . substr($hash, 4);
         }
@@ -61,7 +58,6 @@ class Usuario extends Authenticatable
         return 'password_hash';
     }
 
-    // Deshabilitar remember token (ya que no lo usas)
     public function getRememberToken()
     {
         return null;
@@ -69,7 +65,6 @@ class Usuario extends Authenticatable
 
     public function setRememberToken($value)
     {
-        // No hacer nada
     }
 
     public function getRememberTokenName()
@@ -77,29 +72,21 @@ class Usuario extends Authenticatable
         return null;
     }
 
-    // Accessor para el nombre (requerido por Filament)
     public function getNameAttribute()
     {
         return $this->nombre_completo;
     }
 
-    // Verificar si el usuario está activo
     public function isActive()
     {
         return $this->activo;
     }
 
-    /**
-     * Relación con Rol
-     */
     public function rol(): BelongsTo
     {
         return $this->belongsTo(Rol::class, 'rol_id', 'rol_id');
     }
 
-    /**
-     * Scope para usuarios activos
-     */
     public function scopeActivos($query)
     {
         return $query->where('activo', true);
@@ -112,13 +99,11 @@ class Usuario extends Authenticatable
 
     public function permisosNombres(): array
     {
-        // Cachea por usuario para no golpear BD en cada check
         return Cache::remember(
             "u:{$this->getKey()}:permisos",
             now()->addMinutes(10),
             function () {
                 if (!$this->rol) return [];
-                // Une roles_permisos -> permisos
                 return Permiso::query()
                     ->select('seguridad.permisos.nombre_permiso')
                     ->join('seguridad.roles_permisos as rp', 'rp.permiso_id', '=', 'seguridad.permisos.permiso_id')
@@ -132,25 +117,20 @@ class Usuario extends Authenticatable
 
     public function tienePermiso(string $permiso): bool
     {
-        // Opcional: rol “SUPERADMIN” todo acceso
         if ($this->tieneRol('SUPERADMIN')) return true;
-
         $perms = $this->permisosNombres();
-
-        // Soporta comodines basados en prefijo (ej. reservas.*)
         if (str_contains($permiso, '*')) {
             $prefix = rtrim($permiso, '*');
             return collect($perms)->contains(fn ($p) => str_starts_with($p, $prefix));
         }
-
         return in_array($permiso, $perms, true);
     }
 
-    // Llamar al invalidar cache cuando cambie rol/permisos
     public function invalidatePermisosCache(): void
     {
         Cache::forget("u:{$this->getKey()}:permisos");
     }
+
     public function setPasswordAttribute($value): void
     {
         $this->attributes['password_hash'] = Hash::make($value);
@@ -161,4 +141,14 @@ class Usuario extends Authenticatable
         return $this->getAuthPassword();
     }
 
+    public function canAccessPanel(\Filament\Panel $panel): bool
+    {
+        return $this->activo === true;
     }
+
+
+    public function getFilamentName(): string
+    {
+        return $this->nombre_completo;
+    }
+}

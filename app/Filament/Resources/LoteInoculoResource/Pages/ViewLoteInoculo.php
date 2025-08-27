@@ -10,10 +10,16 @@ class ViewLoteInoculo extends ViewRecord
 {
     protected static string $resource = LoteInoculoResource::class;
 
+    protected function canView($record): bool
+    {
+        return auth()->user()?->tienePermiso('lote_inoculo.ver') ?? false;
+    }
+
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make(),
+            Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.editar') ?? false),
+            Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.eliminar') ?? false),
         ];
     }
 }

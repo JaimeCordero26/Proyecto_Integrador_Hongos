@@ -13,8 +13,12 @@ class EditUsuario extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\ViewAction::make(),
-            Actions\DeleteAction::make(),
+            Actions\DeleteAction::make()->visible(fn () => auth()->user()?->tienePermiso('usuarios.eliminar') ?? false),
         ];
+    }
+
+    protected function canEdit($record): bool
+    {
+        return auth()->user()?->tienePermiso('usuarios.editar') ?? false;
     }
 }

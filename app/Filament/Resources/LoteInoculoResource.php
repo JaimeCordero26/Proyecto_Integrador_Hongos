@@ -2,23 +2,28 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Forms;
+use Filament\Tables;
+use Filament\Forms\Form;
+use Filament\Tables\Table;
+use App\Models\LoteInoculo;
+use Filament\Resources\Resource;
+use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Support\HasCrudPermissions;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\LoteInoculoResource\Pages;
 use App\Filament\Resources\LoteInoculoResource\RelationManagers;
-use App\Models\LoteInoculo;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Resources\Resource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LoteInoculoResource extends Resource
 {
+        use HasCrudPermissions;
     protected static ?string $model = LoteInoculo::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-beaker';
 
+        protected static ?string $navigationGroup = 'Cultivo';
+
+        protected static string $permPrefix = 'lote_inoculo';
     public static function form(Form $form): Form
     {
         return $form
@@ -66,16 +71,13 @@ class LoteInoculoResource extends Resource
             ])
             ->filters([
                 //
-            ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ]);
+        ])->actions([
+            Tables\Actions\ViewAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.ver') ?? false),
+            Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.editar') ?? false),
+            Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.eliminar') ?? false),
+        ])->bulkActions([
+            Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.eliminar') ?? false),
+        ]);
     }
 
     public static function getRelations(): array

@@ -2,23 +2,31 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Forms;
+use Filament\Tables;
+use Filament\Forms\Form;
+use Filament\Tables\Table;
+use Filament\Resources\Resource;
+use App\Models\InventarioLaboratorio;
+use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Support\HasCrudPermissions;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\InventarioLaboratorioResource\Pages;
 use App\Filament\Resources\InventarioLaboratorioResource\RelationManagers;
-use App\Models\InventarioLaboratorio;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Resources\Resource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class InventarioLaboratorioResource extends Resource
 {
+        use HasCrudPermissions;
+
+        protected static string $permPrefix = 'inventario_laboratorio';
+
     protected static ?string $model = InventarioLaboratorio::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-archive-box';
 
+    protected static ?string $navigationGroup = 'Administración';
+
+    
     public static function form(Form $form): Form
     {
         return $form
@@ -61,16 +69,13 @@ class InventarioLaboratorioResource extends Resource
             ])
             ->filters([
                 //
-            ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ]);
+        ])->actions([
+            Tables\Actions\ViewAction::make()->visible(fn() => auth()->user()?->tienePermiso('inventario_laboratorio.ver') ?? false),
+            Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('inventario_laboratorio.editar') ?? false),
+            Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('inventario_laboratorio.eliminar') ?? false),
+        ])->bulkActions([
+            Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('inventario_laboratorio.eliminar') ?? false),
+        ]);
     }
 
     public static function getRelations(): array

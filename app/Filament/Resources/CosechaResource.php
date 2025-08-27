@@ -2,23 +2,29 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\CosechaResource\Pages;
-use App\Filament\Resources\CosechaResource\RelationManagers;
-use App\Models\Cosecha;
 use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
+use App\Models\Cosecha;
+use Filament\Forms\Form;
 use Filament\Tables\Table;
+use Filament\Resources\Resource;
 use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Support\HasCrudPermissions;
+
+use App\Filament\Resources\CosechaResource\Pages;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Filament\Resources\CosechaResource\RelationManagers;
 
 class CosechaResource extends Resource
 {
+    use HasCrudPermissions;
     protected static ?string $model = Cosecha::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-shopping-bag';
 
+        protected static ?string $navigationGroup = 'Cultivo';
+
+        protected static string $permPrefix = 'cosecha';
     public static function form(Form $form): Form
     {
         return $form
@@ -61,16 +67,13 @@ class CosechaResource extends Resource
             ])
             ->filters([
                 //
-            ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ]);
+        ])->actions([
+            Tables\Actions\ViewAction::make()->visible(fn() => auth()->user()?->tienePermiso('cosecha.ver') ?? false),
+            Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('cosecha.editar') ?? false),
+            Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('cosecha.eliminar') ?? false),
+        ])->bulkActions([
+            Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('cosecha.eliminar') ?? false),
+        ]);
     }
 
     public static function getRelations(): array

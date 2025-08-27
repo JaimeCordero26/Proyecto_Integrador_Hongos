@@ -2,22 +2,30 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Forms;
+use Filament\Tables;
+use Filament\Forms\Form;
+use Filament\Tables\Table;
+use App\Models\SalaCultivo;
+use Filament\Resources\Resource;
+use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Support\HasCrudPermissions;
+
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\SalaCultivoResource\Pages;
 use App\Filament\Resources\SalaCultivoResource\RelationManagers;
-use App\Models\SalaCultivo;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Resources\Resource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SalaCultivoResource extends Resource
 {
+        use HasCrudPermissions;
+
+        protected static string $permPrefix = 'sala_cultivo';
+
     protected static ?string $model = SalaCultivo::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-building-office';
+
+    protected static ?string $navigationGroup = 'Administración';
 
     public static function form(Form $form): Form
     {
@@ -44,16 +52,13 @@ class SalaCultivoResource extends Resource
             ])
             ->filters([
                 //
-            ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ]);
+        ])->actions([
+            Tables\Actions\ViewAction::make()->visible(fn() => auth()->user()?->tienePermiso('sala_cultivo.ver') ?? false),
+            Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('sala_cultivo.editar') ?? false),
+            Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('sala_cultivo.eliminar') ?? false),
+        ])->bulkActions([
+            Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('sala_cultivo.eliminar') ?? false),
+        ]);
     }
 
     public static function getRelations(): array

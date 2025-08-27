@@ -2,22 +2,29 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Forms;
+use Filament\Tables;
+use Filament\Forms\Form;
+use Filament\Tables\Table;
+use Filament\Resources\Resource;
+use App\Models\BitacoraActividad;
+use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Support\HasCrudPermissions;
+
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\BitacoraActividadResource\Pages;
 use App\Filament\Resources\BitacoraActividadResource\RelationManagers;
-use App\Models\BitacoraActividad;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Resources\Resource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class BitacoraActividadResource extends Resource
 {
+        use HasCrudPermissions;
+
+    protected static string $permPrefix = 'bitacora_actividad';
     protected static ?string $model = BitacoraActividad::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
+
+    protected static ?string $navigationGroup = 'Administración';
 
     public static function form(Form $form): Form
     {
@@ -50,16 +57,13 @@ class BitacoraActividadResource extends Resource
             ])
             ->filters([
                 //
-            ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ]);
+        ])->actions([
+            Tables\Actions\ViewAction::make()->visible(fn() => auth()->user()?->tienePermiso('bitacora_actividad.ver') ?? false),
+            Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('bitacora_actividad.editar') ?? false),
+            Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('bitacora_actividad.eliminar') ?? false),
+        ])->bulkActions([
+            Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('bitacora_actividad.eliminar') ?? false),
+        ]);
     }
 
     public static function getRelations(): array

@@ -2,19 +2,24 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Forms;
+use Filament\Tables;
+use Filament\Forms\Form;
+use Filament\Tables\Table;
+use Filament\Resources\Resource;
+use App\Models\ProcesoEsterilizacion;
+use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Support\HasCrudPermissions;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\ProcesoEsterilizacionResource\Pages;
 use App\Filament\Resources\ProcesoEsterilizacionResource\RelationManagers;
-use App\Models\ProcesoEsterilizacion;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Resources\Resource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ProcesoEsterilizacionResource extends Resource
 {
+        use HasCrudPermissions;
+
+        protected static string $permPrefix = 'proceso_esterilizacion';
+
     protected static ?string $model = ProcesoEsterilizacion::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';

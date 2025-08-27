@@ -13,7 +13,7 @@ class ListTipoContaminacions extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()->visible(fn () => auth()->user()?->tienePermiso('tipo_contaminacion.crear') ?? false),
         ];
     }
 }

@@ -13,8 +13,12 @@ class EditLoteProduccion extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\ViewAction::make(),
-            Actions\DeleteAction::make(),
+            Actions\DeleteAction::make()->visible(fn () => auth()->user()?->tienePermiso('lote_produccion.eliminar') ?? false),
         ];
+    }
+
+    protected function canEdit($record): bool
+    {
+        return auth()->user()?->tienePermiso('lote_produccion.editar') ?? false;
     }
 }

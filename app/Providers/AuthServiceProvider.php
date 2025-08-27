@@ -7,19 +7,22 @@ use Illuminate\Support\Facades\Gate;
 
 class AuthServiceProvider extends ServiceProvider
 {
+    protected $policies = [
+        \App\Models\Usuario::class => \App\Policies\UsuarioPolicy::class,
+        \App\Models\Rol::class => \App\Policies\RolPolicy::class,
+        \App\Models\Permiso::class => \App\Policies\PermisoPolicy::class,
+    ];
+
     public function boot(): void
     {
-        // SUPERADMIN: acceso total
         Gate::before(function ($user, $ability) {
-            return method_exists($user, 'tieneRol') && $user->tieneRol('SUPERADMIN') ? true : null;
+            if (method_exists($user, 'tieneRol') && $user->tieneRol('SUPERADMIN')) {
+                return true;
+            }
+            if (method_exists($user, 'tienePermiso') && $user->tienePermiso($ability)) {
+                return true;
+            }
+            return null;
         });
-
-        // No usamos Policies; resolvemos permisos directo
-        Gate::guessPolicyNamesUsing(fn () => null);
-
-        // Cualquier "ability" es un permiso en tu BD
-        Gate::define('*', fn ($user, $ability) =>
-            method_exists($user, 'tienePermiso') && $user->tienePermiso($ability)
-        );
     }
 }
