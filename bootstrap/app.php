@@ -16,9 +16,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'permiso' => \App\Http\Middleware\EnsurePermission::class,
         ]);
 
-        // (Opcional) globales: se aplican a TODAS las peticiones
-        // $middleware->append(\App\Http\Middleware\EnsureRole::class);
-        // $middleware->append(\App\Http\Middleware\EnsurePermission::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

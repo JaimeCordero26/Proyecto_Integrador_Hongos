@@ -22,7 +22,6 @@ class UsuarioResource extends Resource
 
     protected static ?string $navigationGroup = 'Seguridad';
 
-
     public static function canViewAny(): bool
     {
         return auth()->user()?->tienePermiso('usuarios.ver') ?? false;
@@ -31,27 +30,69 @@ class UsuarioResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Select::make('rol_id')->label('Rol')->options(Rol::query()->pluck('nombre_rol','rol_id'))->searchable()->preload()->required(),
-            Forms\Components\TextInput::make('nombre_completo')->required()->maxLength(255),
-            Forms\Components\TextInput::make('email')->email()->required()->unique(ignoreRecord: true, column: 'email'),
-            Forms\Components\TextInput::make('password')->password()->revealable()->required(fn (string $op) => $op === 'create')->dehydrated(fn ($s) => filled($s))->dehydrateStateUsing(fn ($s) => $s)->rule(PasswordRule::min(8)),
-            Forms\Components\Toggle::make('activo')->default(true),
+            Forms\Components\Select::make('rol_id')
+                ->label('Rol')
+                ->options(Rol::query()->pluck('nombre_rol','rol_id'))
+                ->searchable()
+                ->preload()
+                ->required(),
+            
+            Forms\Components\TextInput::make('nombre_completo')
+                ->required()
+                ->maxLength(255),
+            
+            Forms\Components\TextInput::make('email')
+                ->email()
+                ->required()
+                ->unique(ignoreRecord: true, column: 'email'),
+            
+            Forms\Components\TextInput::make('password')
+                ->password()
+                ->revealable()
+                ->required(function (string $context): bool {
+                    return $context === 'create';
+                })
+                ->dehydrated(fn (?string $state): bool => filled($state))
+                ->dehydrateStateUsing(fn (string $state): string => $state)
+                ->rules([PasswordRule::min(8)]),
+            
+            Forms\Components\Toggle::make('activo')
+                ->default(true),
         ])->columns(2);
     }
 
     public static function table(Table $table): Table
     {
         return $table->columns([
-            Tables\Columns\TextColumn::make('rol.nombre_rol')->label('Rol')->badge()->sortable()->toggleable(),
-            Tables\Columns\TextColumn::make('nombre_completo')->searchable()->sortable(),
-            Tables\Columns\TextColumn::make('email')->searchable()->sortable(),
-            Tables\Columns\IconColumn::make('activo')->boolean()->sortable(),
+            Tables\Columns\TextColumn::make('rol.nombre_rol')
+                ->label('Rol')
+                ->badge()
+                ->sortable()
+                ->toggleable(),
+            
+            Tables\Columns\TextColumn::make('nombre_completo')
+                ->searchable()
+                ->sortable(),
+            
+            Tables\Columns\TextColumn::make('email')
+                ->searchable()
+                ->sortable(),
+            
+            Tables\Columns\IconColumn::make('activo')
+                ->boolean()
+                ->sortable(),
         ])->actions([
-            Tables\Actions\ViewAction::make()->visible(fn() => auth()->user()?->tienePermiso('usuarios.ver') ?? false),
-            Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('usuarios.editar') ?? false),
-            Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('usuarios.eliminar') ?? false),
+            Tables\Actions\ViewAction::make()
+                ->visible(fn() => auth()->user()?->tienePermiso('usuarios.ver') ?? false),
+            
+            Tables\Actions\EditAction::make()
+                ->visible(fn() => auth()->user()?->tienePermiso('usuarios.editar') ?? false),
+            
+            Tables\Actions\DeleteAction::make()
+                ->visible(fn() => auth()->user()?->tienePermiso('usuarios.eliminar') ?? false),
         ])->bulkActions([
-            Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('usuarios.eliminar') ?? false),
+            Tables\Actions\DeleteBulkAction::make()
+                ->visible(fn() => auth()->user()?->tienePermiso('usuarios.eliminar') ?? false),
         ])->defaultSort('usuario_id', 'desc');
     }
 

@@ -29,6 +29,14 @@ class Accion extends Model
     ];
 
     /**
+     * Relación con el modelo Usuario
+     */
+    public function usuario()
+    {
+        return $this->belongsTo(Usuario::class, 'usuario_id', 'usuario_id');
+    }
+
+    /**
      * Scope para acciones recientes
      */
     public function scopeRecientes($query, $dias = 7)
