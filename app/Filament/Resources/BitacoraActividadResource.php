@@ -14,6 +14,7 @@ use App\Filament\Support\HasCrudPermissions;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\BitacoraActividadResource\Pages;
 use App\Filament\Resources\BitacoraActividadResource\RelationManagers;
+use App\Models\Usuario; // Asegúrate de importar el modelo
 
 class BitacoraActividadResource extends Resource
 {
@@ -21,9 +22,10 @@ class BitacoraActividadResource extends Resource
 
     protected static string $permPrefix = 'bitacora_actividad';
     protected static ?string $model = BitacoraActividad::class;
+    protected static ?string $pluralModelLabel = 'Bitácora de actividades'; 
 
     protected static ?string $navigationLabel = 'Bitacora actividades';
-
+    protected static ?string $plural = '';
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
 
     protected static ?string $navigationGroup = 'Administración';
@@ -33,7 +35,7 @@ class BitacoraActividadResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Select::make('usuario_id')
-                    ->relationship('usuario', 'usuario_id')
+                    ->relationship('usuario', 'nombre_completo') // <-- Ahora muestra el nombre completo
                     ->required(),
                 Forms\Components\DateTimePicker::make('fecha_hora'),
                 Forms\Components\TextInput::make('tipo_actividad')
@@ -48,8 +50,8 @@ class BitacoraActividadResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('usuario.usuario_id')
-                    ->numeric()
+                Tables\Columns\TextColumn::make('usuario.nombre_completo') // <-- Muestra el nombre en la tabla
+                    ->label('Usuario')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('fecha_hora')
                     ->dateTime()
