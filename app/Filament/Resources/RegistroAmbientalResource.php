@@ -29,9 +29,9 @@ class RegistroAmbientalResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('sala_id')
-                    ->required()
-                    ->numeric(),
+                Forms\Components\Select::make('sala_id')
+                    ->relationship('salaCultivo', 'nombre_sala')
+                    ->required(),
                 Forms\Components\DateTimePicker::make('fecha_hora'),
                 Forms\Components\TextInput::make('temperatura_celsius')
                     ->numeric(),
@@ -39,6 +39,9 @@ class RegistroAmbientalResource extends Resource
                     ->numeric(),
                 Forms\Components\TextInput::make('co2_ppm')
                     ->numeric(),
+                Forms\Components\TextInput::make('luz_lm')
+                    ->numeric()
+                    ->label('Lúmenes'),
             ]);
     }
 
@@ -60,6 +63,10 @@ class RegistroAmbientalResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('co2_ppm')
                     ->numeric()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('luz_lm') 
+                    ->numeric()
+                    ->label('Lúmenes')
                     ->sortable(),
             ])
             ->filters([

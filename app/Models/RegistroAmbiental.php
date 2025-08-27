@@ -20,6 +20,7 @@ class RegistroAmbiental extends Model
         'temperatura_celsius',
         'humedad_relativa',
         'co2_ppm',
+        'luz_lm',
     ];
 
     protected $casts = [
