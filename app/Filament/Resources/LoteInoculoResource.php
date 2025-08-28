@@ -10,9 +10,8 @@ use App\Models\LoteInoculo;
 use Filament\Resources\Resource;
 use Illuminate\Database\Eloquent\Builder;
 use App\Filament\Support\HasCrudPermissions;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\DatabaseEloquent\SoftDeletingScope;
 use App\Filament\Resources\LoteInoculoResource\Pages;
-use App\Filament\Resources\LoteInoculoResource\RelationManagers;
 
 class LoteInoculoResource extends Resource
 {
