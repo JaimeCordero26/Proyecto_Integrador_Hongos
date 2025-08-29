@@ -2,36 +2,41 @@
 
 namespace App\Filament\Resources;
 
-use Filament\Forms;
-use Filament\Tables;
-use Filament\Forms\Form;
-use Filament\Tables\Table;
-use App\Models\LoteInoculo;
-use Filament\Resources\Resource;
-use Illuminate\Database\Eloquent\Builder;
-use App\Filament\Support\HasCrudPermissions;
-use Illuminate\DatabaseEloquent\SoftDeletingScope;
 use App\Filament\Resources\LoteInoculoResource\Pages;
+use App\Models\LoteInoculo;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+use App\Filament\Support\HasCrudPermissions;
+use Illuminate\Database\Eloquent\Collection;
+use App\Services\ReporteGenerador;
 
 class LoteInoculoResource extends Resource
 {
-        use HasCrudPermissions;
+    use HasCrudPermissions;
+
+    protected static string $permPrefix = 'lote_inoculo';
+    protected static ?string $navigationGroup = 'Cultivo';
     protected static ?string $model = LoteInoculo::class;
-
     protected static ?string $navigationIcon = 'heroicon-o-beaker';
+    protected static ?string $navigationLabel = "Lotes Inóculo";
+    protected static ?string $pluralModelLabel = "Lotes Inóculo";
 
-        protected static ?string $navigationGroup = 'Cultivo';
-
-        protected static string $permPrefix = 'lote_inoculo';
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
                 Forms\Components\Select::make('cepa_id')
-                    ->relationship('cepa', 'cepa_id')
+                    ->relationship('cepa', 'nombre_cientifico')
+                    ->searchable()
+                    ->preload()
                     ->required(),
                 Forms\Components\Select::make('usuario_creador_id')
-                    ->relationship('usuarioCreador', 'usuario_id')
+                    ->relationship('usuarioCreador', 'nombre_completo')
+                    ->searchable()
+                    ->preload()
                     ->required(),
                 Forms\Components\DatePicker::make('fecha_creacion')
                     ->required(),
@@ -41,7 +46,9 @@ class LoteInoculoResource extends Resource
                 Forms\Components\TextInput::make('generacion')
                     ->maxLength(255),
                 Forms\Components\Select::make('proceso_esterilizacion_id')
-                    ->relationship('procesoEsterilizacion', 'proceso_id'),
+                    ->relationship('procesoEsterilizacion', 'metodo')
+                    ->searchable()
+                    ->preload(),
                 Forms\Components\Textarea::make('notas')
                     ->columnSpanFull(),
             ]);
@@ -51,39 +58,147 @@ class LoteInoculoResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('cepa.cepa_id')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('usuarioCreador.usuario_id')
-                    ->numeric()
-                    ->sortable(),
+                Tables\Columns\TextColumn::make('cepa.nombre_cientifico')
+                    ->label('Cepa')
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('usuarioCreador.nombre_completo')
+                    ->label('Usuario Creador')
+                    ->sortable()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('fecha_creacion')
-                    ->date()
+                    ->label('Fecha Creación')
+                    ->date('d/m/Y')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('sustrato_grano')
+                    ->label('Sustrato/Grano')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('generacion')
+                    ->label('Generación')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('procesoEsterilizacion.proceso_id')
-                    ->numeric()
-                    ->sortable(),
+                Tables\Columns\TextColumn::make('procesoEsterilizacion.metodo')
+                    ->label('Proceso Esterilización')
+                    ->sortable()
+                    ->placeholder('Sin proceso'),
             ])
+            ->defaultSort('fecha_creacion', 'desc')
             ->filters([
-                //
-        ])->actions([
-            Tables\Actions\ViewAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.ver') ?? false),
-            Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.editar') ?? false),
-            Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.eliminar') ?? false),
-        ])->bulkActions([
-            Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.eliminar') ?? false),
-        ]);
+                Tables\Filters\SelectFilter::make('cepa_id')
+                    ->relationship('cepa', 'nombre_cientifico')
+                    ->label('Cepa'),
+                Tables\Filters\SelectFilter::make('proceso_esterilizacion_id')
+                    ->relationship('procesoEsterilizacion', 'metodo')
+                    ->label('Proceso Esterilización'),
+            ])
+            ->actions([
+                Tables\Actions\ViewAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.ver') ?? false),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.editar') ?? false),
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.eliminar') ?? false),
+
+                // Acción individual para generar reporte
+                Tables\Actions\Action::make('generar_reporte')
+                    ->label('Generar Reporte')
+                    ->icon('heroicon-o-printer')
+                    ->action(function (LoteInoculo $record) {
+                        try {
+                            $reporteGenerador = new ReporteGenerador();
+                            $downloadUrl = $reporteGenerador->generarReporte(
+                                registros: collect([$record]),
+                                titulo: 'Reporte de Lote Inóculo',
+                                columnas: [
+                                    'cepa_nombre' => 'Cepa',
+                                    'usuario_creador_nombre' => 'Usuario Creador',
+                                    'fecha_creacion' => 'Fecha Creación',
+                                    'sustrato_grano' => 'Sustrato/Grano',
+                                    'generacion' => 'Generación',
+                                    'proceso_esterilizacion_nombre' => 'Proceso Esterilización',
+                                    'notas' => 'Notas',
+                                ],
+                                nombreArchivo: 'reporte_lote_inoculo_' . $record->lote_inoculo_id . '.pdf'
+                            );
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Reporte generado exitosamente')
+                                ->body('El reporte se ha creado correctamente.')
+                                ->success()
+                                ->actions([
+                                    \Filament\Notifications\Actions\Action::make('download')
+                                        ->label('Ver PDF')
+                                        ->url($downloadUrl)
+                                        ->openUrlInNewTab()
+                                        ->button()
+                                ])
+                                ->duration(15000)
+                                ->send();
+                        } catch (\Exception $e) {
+                            \Log::error('Error generando reporte: ' . $e->getMessage());
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error al generar reporte')
+                                ->body('Error: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->color('success'),
+            ])
+            ->bulkActions([
+                Tables\Actions\DeleteBulkAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.eliminar') ?? false),
+
+                // Acción bulk para generar reportes
+                Tables\Actions\BulkAction::make('generar_reporte_bulk')
+                    ->label('Generar Reportes')
+                    ->icon('heroicon-o-printer')
+                    ->action(function (Collection $records) {
+                        try {
+                            $reporteGenerador = new ReporteGenerador();
+                            $downloadUrl = $reporteGenerador->generarReporte(
+                                registros: $records,
+                                titulo: 'Reporte de Lotes Inóculo',
+                                columnas: [
+                                    'cepa_nombre' => 'Cepa',
+                                    'usuario_creador_nombre' => 'Usuario Creador',
+                                    'fecha_creacion' => 'Fecha Creación',
+                                    'sustrato_grano' => 'Sustrato/Grano',
+                                    'generacion' => 'Generación',
+                                    'proceso_esterilizacion_nombre' => 'Proceso Esterilización',
+                                    'notas' => 'Notas',
+                                ],
+                                nombreArchivo: 'reportes_lotes_inoculo_' . date('Y-m-d_H-i-s') . '.pdf'
+                            );
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Reportes generados exitosamente')
+                                ->body('Se procesaron ' . $records->count() . ' registros.')
+                                ->success()
+                                ->actions([
+                                    \Filament\Notifications\Actions\Action::make('download')
+                                        ->label('Ver PDF')
+                                        ->url($downloadUrl)
+                                        ->openUrlInNewTab()
+                                        ->button()
+                                ])
+                                ->duration(15000)
+                                ->send();
+                        } catch (\Exception $e) {
+                            \Log::error('Error generando reportes: ' . $e->getMessage());
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error al generar reportes')
+                                ->body('Error: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->color('success'),
+            ]);
     }
 
     public static function getRelations(): array
     {
-        return [
-            //
-        ];
+        return [];
     }
 
     public static function getPages(): array

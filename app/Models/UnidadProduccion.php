@@ -96,4 +96,11 @@ class UnidadProduccion extends Model
         }
         return 0;
     }
+
+    public function getNombreTipoContaminacionAttribute(): ?string
+    {
+        return $this->tipoContaminacion?->nombre_comun;
+    }
+
+
 }

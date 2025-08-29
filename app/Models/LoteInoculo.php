@@ -60,4 +60,21 @@ class LoteInoculo extends Model
     {
         return $this->hasMany(LoteProduccion::class, 'lote_inoculo_id', 'lote_inoculo_id');
     }
+
+
+// En tu modelo LoteInoculo.php
+public function getCepaNombreAttribute(): string
+{
+    return $this->cepa?->nombre_cientifico ?? 'Sin cepa';
+}
+
+public function getUsuarioCreadorNombreAttribute(): string
+{
+    return $this->usuarioCreador?->nombre_completo ?? 'Sin usuario';
+}
+
+public function getProcesoEsterilizacionNombreAttribute(): string
+{
+    return $this->procesoEsterilizacion?->metodo ?? 'Sin proceso';
+}
 }

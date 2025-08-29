@@ -85,4 +85,23 @@ class LoteProduccion extends Model
     {
         return $this->hasMany(LoteSustrato::class, 'lote_id', 'lote_id');
     }
+    public function getCepaNombreAttribute(): string
+    {
+        return $this->cepa?->nombre_cientifico ?? 'Sin cepa';
+    }
+
+    public function getProcesoEsterilizacionNombreAttribute(): string
+    {
+        return $this->procesoEsterilizacion?->metodo ?? 'Sin proceso';
+    }
+
+ public function getSalaNombreAttribute(): string
+{
+    return $this->salaCultivo?->nombre_sala ?? 'Sin sala';
+}
+
+    public function getUsuarioCreadorNombreAttribute(): string
+    {
+        return $this->usuarioCreador?->nombre_completo ?? 'Sin usuario';
+    }
 }

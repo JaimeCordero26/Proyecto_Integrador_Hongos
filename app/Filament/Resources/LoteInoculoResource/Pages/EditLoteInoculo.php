@@ -13,12 +13,7 @@ class EditLoteInoculo extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make()->visible(fn () => auth()->user()?->tienePermiso('lote_inoculo.eliminar') ?? false),
+            Actions\DeleteAction::make(),
         ];
-    }
-
-    protected function canEdit($record): bool
-    {
-        return auth()->user()?->tienePermiso('lote_inoculo.editar') ?? false;
     }
 }

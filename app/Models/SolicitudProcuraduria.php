@@ -60,4 +60,14 @@ class SolicitudProcuraduria extends Model
     {
         return $query->where('estado_solicitud', 'Aprobada');
     }
+    
+    public function getItemNombreAttribute(): string
+    {
+        return $this->item?->nombre_item ?? 'N/A';
+    }
+
+    public function getUsuarioSolicitanteNombreAttribute(): string
+    {
+        return $this->usuarioSolicitante?->nombre_completo ?? 'N/A';
+    }
 }

@@ -48,4 +48,9 @@ class BitacoraActividad extends Model
     {
         return $query->where('tipo_actividad', $tipo);
     }
+
+    public function getUsuarioNombreAttribute(): string
+    {
+        return $this->usuario?->nombre_completo ?? 'Usuario no encontrado';
+    }
 }

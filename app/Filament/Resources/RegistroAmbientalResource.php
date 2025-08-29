@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Filament\Resources;
 
 use Filament\Forms;
@@ -8,23 +7,22 @@ use Filament\Forms\Form;
 use Filament\Tables\Table;
 use Filament\Resources\Resource;
 use App\Models\RegistroAmbiental;
-use Illuminate\Database\Eloquent\Builder;
+use App\Services\ReporteGenerador;
+use Illuminate\Database\Eloquent\Collection;
 use App\Filament\Support\HasCrudPermissions;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\RegistroAmbientalResource\Pages;
 use App\Filament\Resources\RegistroAmbientalResource\RelationManagers;
 
 class RegistroAmbientalResource extends Resource
 {
-        use HasCrudPermissions;
+    use HasCrudPermissions;
 
-        protected static string $permPrefix = 'registro_ambiental';
-        protected static ?string $navigationLabel = 'Registros ambientales';
+    protected static string $permPrefix = 'registro_ambiental';
+    protected static ?string $navigationLabel = 'Registros Ambientales';
     protected static ?string $model = RegistroAmbiental::class;
-
     protected static ?string $navigationIcon = 'heroicon-o-sparkles';
+    protected static ?string $navigationGroup = 'Cultivo';
 
-        protected static ?string $navigationGroup = 'Cultivo';
     public static function form(Form $form): Form
     {
         return $form
@@ -33,15 +31,10 @@ class RegistroAmbientalResource extends Resource
                     ->relationship('salaCultivo', 'nombre_sala')
                     ->required(),
                 Forms\Components\DateTimePicker::make('fecha_hora'),
-                Forms\Components\TextInput::make('temperatura_celsius')
-                    ->numeric(),
-                Forms\Components\TextInput::make('humedad_relativa')
-                    ->numeric(),
-                Forms\Components\TextInput::make('co2_ppm')
-                    ->numeric(),
-                Forms\Components\TextInput::make('luz_lm')
-                    ->numeric()
-                    ->label('Lúmenes'),
+                Forms\Components\TextInput::make('temperatura_celsius')->numeric(),
+                Forms\Components\TextInput::make('humedad_relativa')->numeric(),
+                Forms\Components\TextInput::make('co2_ppm')->numeric(),
+                Forms\Components\TextInput::make('luz_lm')->numeric()->label('Lúmenes'),
             ]);
     }
 
@@ -49,41 +42,132 @@ class RegistroAmbientalResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('sala_id')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('fecha_hora')
-                    ->dateTime()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('temperatura_celsius')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('humedad_relativa')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('co2_ppm')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('luz_lm') 
-                    ->numeric()
-                    ->label('Lúmenes')
-                    ->sortable(),
+                Tables\Columns\TextColumn::make('sala_id')->numeric()->sortable(),
+                Tables\Columns\TextColumn::make('fecha_hora')->dateTime()->sortable(),
+                Tables\Columns\TextColumn::make('temperatura_celsius')->numeric()->sortable(),
+                Tables\Columns\TextColumn::make('humedad_relativa')->numeric()->sortable(),
+                Tables\Columns\TextColumn::make('co2_ppm')->numeric()->sortable(),
+                Tables\Columns\TextColumn::make('luz_lm')->numeric()->label('Lúmenes')->sortable(),
             ])
-            ->filters([
-                //
-        ])->actions([
-            Tables\Actions\ViewAction::make()->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.ver') ?? false),
-            Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.editar') ?? false),
-            Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.eliminar') ?? false),
-        ])->bulkActions([
-            Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.eliminar') ?? false),
-        ]);
+            ->actions([
+                Tables\Actions\ViewAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.ver') ?? false),
+                
+                Tables\Actions\EditAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.editar') ?? false),
+                
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.eliminar') ?? false),
+                
+                // Acción personalizada para generar el reporte de un solo registro
+                Tables\Actions\Action::make('generar_reporte')
+                    ->label('Reporte')
+                    ->icon('heroicon-o-printer')
+                    ->action(function (RegistroAmbiental $record) {
+                        try {
+                            $reporteGenerador = new ReporteGenerador();
+                            
+                            $downloadUrl = $reporteGenerador->generarReporte(
+                                registros: collect([$record]),
+                                titulo: 'Reporte Ambiental',
+                                columnas: [
+                                    'fecha_hora' => 'Fecha y Hora',
+                                    'temperatura_celsius' => 'Temperatura (C)',
+                                    'humedad_relativa' => 'Humedad (%)',
+                                    'co2_ppm' => 'CO2 (ppm)',
+                                    'luz_lm' => 'Lumenes'
+                                ],
+                                nombreArchivo: 'reporte_ambiental_' . $record->registro_id . '.pdf'
+                            );
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Reporte generado exitosamente')
+                                ->body('El reporte se ha creado correctamente.')
+                                ->success()
+                                ->actions([
+                                    \Filament\Notifications\Actions\Action::make('download')
+                                        ->label('Descargar PDF')
+                                        ->url($downloadUrl)
+                                        ->openUrlInNewTab()
+                                        ->button()
+                                ])
+                                ->duration(15000)
+                                ->send();
+                            
+                        } catch (\Exception $e) {
+                            \Log::error('Error generando reporte: ' . $e->getMessage());
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error al generar reporte')
+                                ->body('Error: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->color('success')
+            ])
+            ->bulkActions([
+                Tables\Actions\DeleteBulkAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.eliminar') ?? false),
+                
+                // Acción en bulk para generar reportes de los registros seleccionados
+                Tables\Actions\BulkAction::make('generar_reporte_bulk')
+                    ->label('Generar Reportes')
+                    ->icon('heroicon-o-printer')
+                    ->action(function (Collection $records) {
+                        try {
+                            $reporteGenerador = new ReporteGenerador();
+                            
+                            $downloadUrl = $reporteGenerador->generarReporte(
+                                registros: $records,
+                                titulo: 'Reporte Ambiental',
+                                columnas: [
+                                    'fecha_hora' => 'Fecha y Hora',
+                                    'temperatura_celsius' => 'Temperatura (C)',
+                                    'humedad_relativa' => 'Humedad (%)',
+                                    'co2_ppm' => 'CO2 (ppm)',
+                                    'luz_lm' => 'Lumenes'
+                                ],
+                                nombreArchivo: 'varios_reportes' . date('Y-m-d_H-i-s') . '.pdf',
+                                groupBy: 'sala_id',
+                                opciones: [
+                                    'grupo_titulo' => 'Sala',
+                                    'salto_pagina_grupos' => true
+                                ]
+                            );
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Reporte generado exitosamente')
+                                ->body('Se procesaron ' . $records->count() . ' registros.')
+                                ->success()
+                                ->actions([
+                                    \Filament\Notifications\Actions\Action::make('download')
+                                        ->label('Descargar PDF')
+                                        ->url($downloadUrl)
+                                        ->openUrlInNewTab()
+                                        ->button()
+                                ])
+                                ->duration(15000)
+                                ->send();
+                            
+                        } catch (\Exception $e) {
+                            \Log::error('Error generando reporte bulk: ' . $e->getMessage());
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error al generar varios reportes')
+                                ->body('Error: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->color('success')
+            ]);
     }
 
     public static function getRelations(): array
     {
         return [
-            //
+            // Relaciones si las necesitas
         ];
     }
 

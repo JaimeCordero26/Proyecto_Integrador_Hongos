@@ -43,4 +43,5 @@ class ProcesoEsterilizacion extends Model
     {
         return $this->hasMany(LoteProduccion::class, 'proceso_esterilizacion_id', 'proceso_id');
     }
+
 }

@@ -53,4 +53,6 @@ class RegistroAmbiental extends Model
     {
         return $query->where('sala_id', $salaId);
     }
+
+    
 }

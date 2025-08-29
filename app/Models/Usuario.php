@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Filament\Models\Contracts\FilamentUser;
+use App\Models\Rol;
+use App\Models\Permiso;
 
 class Usuario extends Authenticatable implements FilamentUser
 {
@@ -34,6 +36,7 @@ class Usuario extends Authenticatable implements FilamentUser
         'activo' => 'boolean',
     ];
 
+    // === Autenticación ===
     public function getAuthIdentifierName()
     {
         return 'email';
@@ -72,6 +75,7 @@ class Usuario extends Authenticatable implements FilamentUser
         return null;
     }
 
+    // === Accesors ===
     public function getNameAttribute()
     {
         return $this->nombre_completo;
@@ -82,16 +86,29 @@ class Usuario extends Authenticatable implements FilamentUser
         return $this->activo;
     }
 
+    // === Relaciones ===
     public function rol(): BelongsTo
     {
         return $this->belongsTo(Rol::class, 'rol_id', 'rol_id');
     }
 
+    public function permisos(): array
+    {
+        return $this->permisosNombres();
+    }
+
+    public function permisosConcatenados(): string
+    {
+        return implode(', ', $this->permisos());
+    }
+
+    // === Scopes ===
     public function scopeActivos($query)
     {
         return $query->where('activo', true);
     }
 
+    // === Roles y permisos ===
     public function tieneRol(string $nombreRol): bool
     {
         return optional($this->rol)->nombre_rol === $nombreRol;
@@ -131,6 +148,7 @@ class Usuario extends Authenticatable implements FilamentUser
         Cache::forget("u:{$this->getKey()}:permisos");
     }
 
+    // === Mutators ===
     public function setPasswordAttribute($value): void
     {
         $this->attributes['password_hash'] = Hash::make($value);
@@ -141,14 +159,25 @@ class Usuario extends Authenticatable implements FilamentUser
         return $this->getAuthPassword();
     }
 
+    // === Filament ===
     public function canAccessPanel(\Filament\Panel $panel): bool
     {
         return $this->activo === true;
     }
 
-
     public function getFilamentName(): string
     {
         return $this->nombre_completo;
     }
+
+    public function getRolNombreAttribute(): string
+    {
+        return $this->rol?->nombre_rol ?? 'Sin rol';
+    }
+
+    public function getActivoTextoAttribute(): string 
+    {
+        return $this->activo ? 'Activo' : 'Inactivo';
+    }
+
 }

@@ -11,6 +11,8 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Validation\Rules\Password as PasswordRule;
+use App\Services\ReporteGenerador;
+use Illuminate\Support\Collection;
 
 class UsuarioResource extends Resource
 {
@@ -19,7 +21,6 @@ class UsuarioResource extends Resource
     protected static ?string $navigationLabel = 'Usuarios';
     protected static ?string $modelLabel = 'Usuario';
     protected static ?string $pluralModelLabel = 'Usuarios';
-
     protected static ?string $navigationGroup = 'Seguridad';
 
     public static function canViewAny(): bool
@@ -49,11 +50,9 @@ class UsuarioResource extends Resource
             Forms\Components\TextInput::make('password')
                 ->password()
                 ->revealable()
-                ->required(function (string $context): bool {
-                    return $context === 'create';
-                })
-                ->dehydrated(fn (?string $state): bool => filled($state))
-                ->dehydrateStateUsing(fn (string $state): string => $state)
+                ->required(fn (string $context) => $context === 'create')
+                ->dehydrated(fn (?string $state) => filled($state))
+                ->dehydrateStateUsing(fn (string $state) => $state)
                 ->rules([PasswordRule::min(8)]),
             
             Forms\Components\Toggle::make('activo')
@@ -90,9 +89,95 @@ class UsuarioResource extends Resource
             
             Tables\Actions\DeleteAction::make()
                 ->visible(fn() => auth()->user()?->tienePermiso('usuarios.eliminar') ?? false),
+
+            // Acción individual para generar PDF del usuario
+            Tables\Actions\Action::make('generar_reporte')
+                ->label('Generar PDF')
+                ->icon('heroicon-o-printer')
+                ->action(function (Usuario $record) {
+                    try {
+                        $reporteGenerador = new ReporteGenerador();
+                        $downloadUrl = $reporteGenerador->generarReporte(
+                            registros: collect([$record]),
+                            titulo: 'Reporte de Usuario',
+                            columnas: [
+                                'rol_nombre' => 'Rol',
+                                'nombre_completo' => 'Nombre Completo',
+                                'email' => 'Correo Electrónico',
+                                'activo_texto' => 'Estado',
+                            ],
+                            nombreArchivo: 'reporte_usuario_' . $record->usuario_id . '.pdf'
+                        );
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Reporte generado exitosamente')
+                            ->body('El PDF del usuario se ha creado correctamente.')
+                            ->success()
+                            ->actions([
+                                \Filament\Notifications\Actions\Action::make('download')
+                                    ->label('Ver PDF')
+                                    ->url($downloadUrl)
+                                    ->openUrlInNewTab()
+                                    ->button()
+                            ])
+                            ->duration(15000)
+                            ->send();
+                    } catch (\Exception $e) {
+                        \Log::error('Error generando reporte de usuario: ' . $e->getMessage());
+                        \Filament\Notifications\Notification::make()
+                            ->title('Error al generar reporte')
+                            ->body('Error: ' . $e->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                })
+                ->color('success'),
         ])->bulkActions([
             Tables\Actions\DeleteBulkAction::make()
                 ->visible(fn() => auth()->user()?->tienePermiso('usuarios.eliminar') ?? false),
+
+            // Acción bulk para generar PDFs
+            Tables\Actions\BulkAction::make('generar_reporte_bulk')
+                ->label('Generar PDFs')
+                ->icon('heroicon-o-printer')
+                ->action(function (Collection $records) {
+                    try {
+                        $reporteGenerador = new ReporteGenerador();
+                        $downloadUrl = $reporteGenerador->generarReporte(
+                            registros: $records,
+                            titulo: 'Reporte de Usuarios',
+                            columnas: [
+                                'rol_nombre' => 'Rol',
+                                'nombre_completo' => 'Nombre Completo',
+                                'email' => 'Correo Electrónico',
+                                'activo_texto' => 'Estado',
+                            ],
+                            nombreArchivo: 'reportes_usuarios_' . date('Y-m-d_H-i-s') . '.pdf'
+                        );
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Reportes generados exitosamente')
+                            ->body('Se procesaron ' . $records->count() . ' usuarios.')
+                            ->success()
+                            ->actions([
+                                \Filament\Notifications\Actions\Action::make('download')
+                                    ->label('Ver PDFs')
+                                    ->url($downloadUrl)
+                                    ->openUrlInNewTab()
+                                    ->button()
+                            ])
+                            ->duration(15000)
+                            ->send();
+                    } catch (\Exception $e) {
+                        \Log::error('Error generando reportes de usuario: ' . $e->getMessage());
+                        \Filament\Notifications\Notification::make()
+                            ->title('Error al generar reportes')
+                            ->body('Error: ' . $e->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                })
+                ->color('success'),
         ])->defaultSort('usuario_id', 'desc');
     }
 

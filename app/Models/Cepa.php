@@ -45,4 +45,5 @@ class Cepa extends Model
                ($this->nombre_cientifico ? " ({$this->nombre_cientifico})" : '') .
                ($this->codigo_interno ? " [{$this->codigo_interno}]" : '');
     }
+    
 }

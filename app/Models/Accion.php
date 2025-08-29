@@ -67,4 +67,69 @@ class Accion extends Model
     {
         return $query->where('usuario_id', $usuarioId);
     }
+
+    // Métodos para formatear datos para PDF
+
+    /**
+     * Obtiene el nombre del usuario para el PDF
+     */
+    public function getUsuarioNombreAttribute()
+    {
+        return $this->usuario ? $this->usuario->nombre_completo : 'Usuario no encontrado';
+    }
+
+    /**
+     * Formatea la fecha y hora para el PDF
+     */
+    public function getFechaHoraFormatoAttribute()
+    {
+        return $this->fecha_hora ? $this->fecha_hora->format('d/m/Y H:i:s') : 'Sin fecha';
+    }
+
+    /**
+     * Formatea el tipo de acción para el PDF
+     */
+    public function getTipoAccionFormatoAttribute()
+    {
+        $tipos = [
+            'CREATE' => 'Crear',
+            'UPDATE' => 'Actualizar',
+            'DELETE' => 'Eliminar',
+            'VIEW' => 'Ver',
+            'LOGIN' => 'Iniciar Sesión',
+            'LOGOUT' => 'Cerrar Sesión',
+        ];
+
+        return $tipos[$this->tipo_accion] ?? $this->tipo_accion;
+    }
+
+    /**
+     * Formatea la descripción limitando caracteres si es muy larga
+     */
+    public function getDescripcionFormatoAttribute()
+    {
+        if (!$this->descripcion) {
+            return 'Sin descripción';
+        }
+
+        return strlen($this->descripcion) > 100 
+            ? substr($this->descripcion, 0, 97) . '...' 
+            : $this->descripcion;
+    }
+
+    /**
+     * Accessor para obtener todos los datos formateados para el PDF
+     */
+    public function getDatosParaPdfAttribute()
+    {
+        return [
+            'auditoria_id' => $this->auditoria_id,
+            'tabla_afectada' => $this->tabla_afectada ?? 'No especificada',
+            'id_registro' => $this->id_registro ?? 'N/A',
+            'tipo_accion' => $this->tipo_accion_formato,
+            'usuario_nombre' => $this->usuario_nombre,
+            'fecha_hora_formato' => $this->fecha_hora_formato,
+            'descripcion' => $this->descripcion_formato,
+        ];
+    }
 }
