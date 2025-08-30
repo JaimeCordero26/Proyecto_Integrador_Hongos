@@ -81,7 +81,6 @@ class BitacoraActividadResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('bitacora_actividad.eliminar') ?? false),
 
-                // Acción individual para generar reporte
                 Tables\Actions\Action::make('generar_reporte')
                     ->label('Generar Reporte')
                     ->icon('heroicon-o-printer')
@@ -125,57 +124,90 @@ class BitacoraActividadResource extends Resource
                     ->color('success'),
             ])
             ->bulkActions([
-                Tables\Actions\DeleteBulkAction::make()
-                    ->visible(fn() => auth()->user()?->tienePermiso('bitacora_actividad.eliminar') ?? false),
+            Tables\Actions\DeleteBulkAction::make()
+                ->visible(fn() => auth()->user()?->tienePermiso('bitacora_actividad.eliminar') ?? false),
 
-                // Acción bulk para generar reportes
-                Tables\Actions\BulkAction::make('generar_reporte_bulk')
-                    ->label('Generar Reportes')
-                    ->icon('heroicon-o-printer')
-                    ->action(function (Collection $records) {
-                        try {
-                            $reporteGenerador = new ReporteGenerador();
-                            $downloadUrl = $reporteGenerador->generarReporte(
-                                registros: $records,
-                                titulo: 'Reporte de Actividades',
-                                columnas: [
-                                    'usuario_nombre' => 'Usuario',
-                                    'fecha_hora' => 'Fecha y Hora',
-                                    'tipo_actividad' => 'Tipo de Actividad',
-                                    'descripcion_detallada' => 'Descripción Detallada',
-                                ],
-                                nombreArchivo: 'reportes_bitacora_actividades_' . date('Y-m-d_H-i-s') . '.pdf',
-                                groupBy: 'usuario_nombre',
-                                opciones: [
-                                    'grupo_titulo' => 'Usuario',
-                                    'salto_pagina_grupos' => true
-                                ]
-                            );
+            Tables\Actions\BulkAction::make('generar_reporte_bulk')
+                ->label('Generar PDFs')
+                ->icon('heroicon-o-printer')
+                ->requiresConfirmation()
+                ->modalHeading('Generar Reporte de Actividades')
+                ->modalDescription(function (Collection $records) {
+                    $count = $records->count();
+                    $limit = 100;
 
-                            \Filament\Notifications\Notification::make()
-                                ->title('Reportes generados exitosamente')
-                                ->body('Se procesaron ' . $records->count() . ' registros.')
-                                ->success()
-                                ->actions([
-                                    \Filament\Notifications\Actions\Action::make('download')
-                                        ->label('Ver PDF')
-                                        ->url($downloadUrl)
-                                        ->openUrlInNewTab()
-                                        ->button()
-                                ])
-                                ->duration(15000)
-                                ->send();
-                        } catch (\Exception $e) {
-                            \Log::error('Error generando reportes: ' . $e->getMessage());
-                            \Filament\Notifications\Notification::make()
-                                ->title('Error al generar reportes')
-                                ->body('Error: ' . $e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    })
-                    ->color('success'),
+                    if ($count > $limit) {
+                        return "⚠️ ADVERTENCIA: Has seleccionado {$count} registros.
+                                Para evitar problemas de memoria, se procesarán solo los primeros {$limit} registros.
+                                Te recomendamos usar filtros para reducir la selección.";
+                    }
+
+                    return "Se generará un PDF con {$count} actividades seleccionadas.";
+                })
+                ->modalSubmitActionLabel('Generar PDF')
+                ->action(function (Collection $records) {
+                    $limit = 100;
+                    $originalCount = $records->count();
+                    if ($originalCount > $limit) {
+                        $records = $records->take($limit);
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Información')
+                            ->body("Se limitó el reporte a {$limit} registros de {$originalCount} seleccionados para evitar problemas de memoria.")
+                            ->warning()
+                            ->duration(5000)
+                            ->send();
+                    }
+
+                    try {
+                        $recordsWithRelations = BitacoraActividad::whereIn('id', $records->pluck('id'))
+                            ->with(['usuario:usuario_id,nombre_completo'])
+                            ->get();
+
+                        $reporteGenerador = new ReporteGenerador();
+                        $downloadUrl = $reporteGenerador->generarReporte(
+                            registros: $recordsWithRelations,
+                            titulo: 'Reporte de Actividades',
+                            columnas: [
+                                'usuario_nombre' => 'Usuario',
+                                'fecha_hora' => 'Fecha y Hora',
+                                'tipo_actividad' => 'Tipo de Actividad',
+                                'descripcion_detallada' => 'Descripción Detallada',
+                            ],
+                            nombreArchivo: 'reportes_bitacora_actividades_' . date('Y-m-d_H-i-s') . '.pdf',
+                            groupBy: 'usuario_nombre',
+                            opciones: [
+                                'grupo_titulo' => 'Usuario',
+                                'salto_pagina_grupos' => true
+                            ]
+                        );
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Reportes generados exitosamente')
+                            ->body('Se procesaron ' . $recordsWithRelations->count() . ' registros.' .
+                                ($originalCount > $limit ? " (Limitado de {$originalCount} registros)" : ''))
+                            ->success()
+                            ->actions([
+                                \Filament\Notifications\Actions\Action::make('download')
+                                    ->label('Ver PDFs')
+                                    ->url($downloadUrl)
+                                    ->openUrlInNewTab()
+                                    ->button()
+                            ])
+                            ->duration(15000)
+                            ->send();
+                    } catch (\Exception $e) {
+                        \Log::error('Error generando reportes de actividades: ' . $e->getMessage());
+                        \Filament\Notifications\Notification::make()
+                            ->title('Error al generar reportes')
+                            ->body('Error: ' . $e->getMessage())
+                            ->danger()
+                            ->send();
+                            }
+                })
+                ->color('success'),
             ]);
+
     }
 
     public static function getRelations(): array

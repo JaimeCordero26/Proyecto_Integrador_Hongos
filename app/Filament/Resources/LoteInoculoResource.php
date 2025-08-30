@@ -98,7 +98,6 @@ class LoteInoculoResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.eliminar') ?? false),
 
-                // Acción individual para generar reporte
                 Tables\Actions\Action::make('generar_reporte')
                     ->label('Generar Reporte')
                     ->icon('heroicon-o-printer')
@@ -148,11 +147,39 @@ class LoteInoculoResource extends Resource
                 Tables\Actions\DeleteBulkAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.eliminar') ?? false),
 
-                // Acción bulk para generar reportes
                 Tables\Actions\BulkAction::make('generar_reporte_bulk')
-                    ->label('Generar Reportes')
+                    ->label('Generar PDFs')
                     ->icon('heroicon-o-printer')
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Reporte de Lotes Inóculo')
+                    ->modalDescription(function (Collection $records) {
+                        $count = $records->count();
+                        $limit = 100;
+
+                        if ($count > $limit) {
+                            return "⚠️ Has seleccionado {$count} registros.
+                                    Para evitar problemas de memoria, se procesarán solo los primeros {$limit}.
+                                    Te recomendamos usar filtros para reducir la selección.";
+                        }
+
+                        return "Se generará un PDF con {$count} lotes seleccionados.";
+                    })
+                    ->modalSubmitActionLabel('Generar PDF')
                     ->action(function (Collection $records) {
+                        $limit = 100;
+                        $originalCount = $records->count();
+
+                        if ($originalCount > $limit) {
+                            $records = $records->take($limit);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Información')
+                                ->body("Se limitó el reporte a {$limit} registros de {$originalCount} seleccionados para evitar problemas de memoria.")
+                                ->warning()
+                                ->duration(5000)
+                                ->send();
+                        }
+
                         try {
                             $reporteGenerador = new ReporteGenerador();
                             $downloadUrl = $reporteGenerador->generarReporte(
@@ -167,12 +194,14 @@ class LoteInoculoResource extends Resource
                                     'proceso_esterilizacion_nombre' => 'Proceso Esterilización',
                                     'notas' => 'Notas',
                                 ],
-                                nombreArchivo: 'reportes_lotes_inoculo_' . date('Y-m-d_H-i-s') . '.pdf'
+                                nombreArchivo: 'reportes_lotes_inoculo_' . date('Y-m-d_H-i-s') . '.pdf',
+                                orientacion: 'landscape'
                             );
 
                             \Filament\Notifications\Notification::make()
                                 ->title('Reportes generados exitosamente')
-                                ->body('Se procesaron ' . $records->count() . ' registros.')
+                                ->body('Se procesaron ' . $records->count() . ' lotes.' .
+                                    ($originalCount > $limit ? " (Limitado de {$originalCount} registros)" : ''))
                                 ->success()
                                 ->actions([
                                     \Filament\Notifications\Actions\Action::make('download')
@@ -184,7 +213,8 @@ class LoteInoculoResource extends Resource
                                 ->duration(15000)
                                 ->send();
                         } catch (\Exception $e) {
-                            \Log::error('Error generando reportes: ' . $e->getMessage());
+                            \Log::error('Error generando reportes de lotes: ' . $e->getMessage());
+
                             \Filament\Notifications\Notification::make()
                                 ->title('Error al generar reportes')
                                 ->body('Error: ' . $e->getMessage())
@@ -192,8 +222,9 @@ class LoteInoculoResource extends Resource
                                 ->send();
                         }
                     })
-                    ->color('success'),
-            ]);
+                    ->color('success')
+                    ->visible(fn() => auth()->user()?->tienePermiso('lote_inoculo.ver') ?? false),
+                ]);
     }
 
     public static function getRelations(): array

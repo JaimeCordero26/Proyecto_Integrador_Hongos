@@ -37,16 +37,16 @@ class UsuarioResource extends Resource
                 ->searchable()
                 ->preload()
                 ->required(),
-            
+
             Forms\Components\TextInput::make('nombre_completo')
                 ->required()
                 ->maxLength(255),
-            
+
             Forms\Components\TextInput::make('email')
                 ->email()
                 ->required()
                 ->unique(ignoreRecord: true, column: 'email'),
-            
+
             Forms\Components\TextInput::make('password')
                 ->password()
                 ->revealable()
@@ -54,7 +54,7 @@ class UsuarioResource extends Resource
                 ->dehydrated(fn (?string $state) => filled($state))
                 ->dehydrateStateUsing(fn (string $state) => $state)
                 ->rules([PasswordRule::min(8)]),
-            
+
             Forms\Components\Toggle::make('activo')
                 ->default(true),
         ])->columns(2);
@@ -68,29 +68,28 @@ class UsuarioResource extends Resource
                 ->badge()
                 ->sortable()
                 ->toggleable(),
-            
+
             Tables\Columns\TextColumn::make('nombre_completo')
                 ->searchable()
                 ->sortable(),
-            
+
             Tables\Columns\TextColumn::make('email')
                 ->searchable()
                 ->sortable(),
-            
+
             Tables\Columns\IconColumn::make('activo')
                 ->boolean()
                 ->sortable(),
         ])->actions([
             Tables\Actions\ViewAction::make()
                 ->visible(fn() => auth()->user()?->tienePermiso('usuarios.ver') ?? false),
-            
+
             Tables\Actions\EditAction::make()
                 ->visible(fn() => auth()->user()?->tienePermiso('usuarios.editar') ?? false),
-            
+
             Tables\Actions\DeleteAction::make()
                 ->visible(fn() => auth()->user()?->tienePermiso('usuarios.eliminar') ?? false),
 
-            // Acción individual para generar PDF del usuario
             Tables\Actions\Action::make('generar_reporte')
                 ->label('Generar PDF')
                 ->icon('heroicon-o-printer')
@@ -133,52 +132,81 @@ class UsuarioResource extends Resource
                 })
                 ->color('success'),
         ])->bulkActions([
-            Tables\Actions\DeleteBulkAction::make()
-                ->visible(fn() => auth()->user()?->tienePermiso('usuarios.eliminar') ?? false),
+                Tables\Actions\DeleteBulkAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('usuarios.eliminar') ?? false),
 
-            // Acción bulk para generar PDFs
-            Tables\Actions\BulkAction::make('generar_reporte_bulk')
-                ->label('Generar PDFs')
-                ->icon('heroicon-o-printer')
-                ->action(function (Collection $records) {
-                    try {
-                        $reporteGenerador = new ReporteGenerador();
-                        $downloadUrl = $reporteGenerador->generarReporte(
-                            registros: $records,
-                            titulo: 'Reporte de Usuarios',
-                            columnas: [
-                                'rol_nombre' => 'Rol',
-                                'nombre_completo' => 'Nombre Completo',
-                                'email' => 'Correo Electrónico',
-                                'activo_texto' => 'Estado',
-                            ],
-                            nombreArchivo: 'reportes_usuarios_' . date('Y-m-d_H-i-s') . '.pdf'
-                        );
+                Tables\Actions\BulkAction::make('generar_reporte_bulk')
+                    ->label('Generar PDFs')
+                    ->icon('heroicon-o-printer')
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Reporte de Usuarios')
+                    ->modalDescription(function (Collection $records) {
+                        $count = $records->count();
+                        $limit = 100;
 
-                        \Filament\Notifications\Notification::make()
-                            ->title('Reportes generados exitosamente')
-                            ->body('Se procesaron ' . $records->count() . ' usuarios.')
-                            ->success()
-                            ->actions([
-                                \Filament\Notifications\Actions\Action::make('download')
-                                    ->label('Ver PDFs')
-                                    ->url($downloadUrl)
-                                    ->openUrlInNewTab()
-                                    ->button()
-                            ])
-                            ->duration(15000)
-                            ->send();
-                    } catch (\Exception $e) {
-                        \Log::error('Error generando reportes de usuario: ' . $e->getMessage());
-                        \Filament\Notifications\Notification::make()
-                            ->title('Error al generar reportes')
-                            ->body('Error: ' . $e->getMessage())
-                            ->danger()
-                            ->send();
-                    }
-                })
-                ->color('success'),
-        ])->defaultSort('usuario_id', 'desc');
+                        if ($count > $limit) {
+                            return "⚠️ ADVERTENCIA: Has seleccionado {$count} usuarios. Para evitar problemas de memoria, se procesarán solo los primeros {$limit} usuarios. Te recomendamos usar filtros para reducir la selección.";
+                        }
+
+                        return "Se generará un PDF con {$count} usuarios seleccionados.";
+                    })
+                    ->modalSubmitActionLabel('Generar PDF')
+                    ->action(function (Collection $records) {
+                        $limit = 100;
+                        $originalCount = $records->count();
+
+                        if ($originalCount > $limit) {
+                            $records = $records->take($limit);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Información')
+                                ->body("Se limitó el reporte a {$limit} usuarios de {$originalCount} seleccionados para evitar problemas de memoria.")
+                                ->warning()
+                                ->duration(5000)
+                                ->send();
+                        }
+
+                        try {
+                            $reporteGenerador = new ReporteGenerador();
+                            $downloadUrl = $reporteGenerador->generarReporte(
+                                registros: $records,
+                                titulo: 'Reporte de Usuarios',
+                                columnas: [
+                                    'rol_nombre' => 'Rol',
+                                    'nombre_completo' => 'Nombre Completo',
+                                    'email' => 'Correo Electrónico',
+                                    'activo_texto' => 'Estado',
+                                ],
+                                nombreArchivo: 'reportes_usuarios_' . date('Y-m-d_H-i-s') . '.pdf'
+                            );
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Reportes generados exitosamente')
+                                ->body('Se procesaron ' . $records->count() . ' usuarios.' .
+                                    ($originalCount > $limit ? " (Limitado de {$originalCount} usuarios)" : ''))
+                                ->success()
+                                ->actions([
+                                    \Filament\Notifications\Actions\Action::make('download')
+                                        ->label('Ver PDFs')
+                                        ->url($downloadUrl)
+                                        ->openUrlInNewTab()
+                                        ->button()
+                                ])
+                                ->duration(15000)
+                                ->send();
+                        } catch (\Exception $e) {
+                            \Log::error('Error generando reportes de usuario: ' . $e->getMessage());
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error al generar reportes')
+                                ->body('Error: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->color('success')
+                    ->visible(fn() => auth()->user()?->tienePermiso('usuarios.ver') ?? false),
+                ]);
+
     }
 
     public static function getRelations(): array

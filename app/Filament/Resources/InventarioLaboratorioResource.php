@@ -26,7 +26,7 @@ class InventarioLaboratorioResource extends Resource
 
     protected static ?string $navigationGroup = 'Administración';
 
-    
+
     public static function form(Form $form): Form
     {
         return $form
@@ -72,7 +72,7 @@ public static function table(Table $table): Table
                 ->searchable(),
         ])
         ->filters([
-            //
+
         ])
         ->actions([
             Tables\Actions\ViewAction::make()
@@ -82,7 +82,6 @@ public static function table(Table $table): Table
             Tables\Actions\DeleteAction::make()
                 ->visible(fn() => auth()->user()?->tienePermiso('inventario_laboratorio.eliminar') ?? false),
 
-            // Acción individual para generar reporte PDF
             Tables\Actions\Action::make('generar_reporte')
                 ->label('Reporte')
                 ->icon('heroicon-o-printer')
@@ -132,11 +131,39 @@ public static function table(Table $table): Table
             Tables\Actions\DeleteBulkAction::make()
                 ->visible(fn() => auth()->user()?->tienePermiso('inventario_laboratorio.eliminar') ?? false),
 
-            // Bulk action para generar reportes de múltiples registros
             Tables\Actions\BulkAction::make('generar_reporte_bulk')
-                ->label('Generar Reportes')
+                ->label('Generar PDFs')
                 ->icon('heroicon-o-printer')
+                ->requiresConfirmation()
+                ->modalHeading('Generar Reporte de Inventario de Laboratorio')
+                ->modalDescription(function (\Illuminate\Database\Eloquent\Collection $records) {
+                    $count = $records->count();
+                    $limit = 100;
+
+                    if ($count > $limit) {
+                        return "⚠️ Has seleccionado {$count} registros.
+                                Para evitar problemas de memoria, se procesarán solo los primeros {$limit}.
+                                Te recomendamos usar filtros para reducir la selección.";
+                    }
+
+                    return "Se generará un PDF con {$count} items seleccionados.";
+                })
+                ->modalSubmitActionLabel('Generar PDF')
                 ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
+                    $limit = 100;
+                    $originalCount = $records->count();
+
+                    if ($originalCount > $limit) {
+                        $records = $records->take($limit);
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Información')
+                            ->body("Se limitó el reporte a {$limit} registros de {$originalCount} seleccionados para evitar problemas de memoria.")
+                            ->warning()
+                            ->duration(5000)
+                            ->send();
+                    }
+
                     try {
                         $reporteGenerador = new \App\Services\ReporteGenerador();
                         $downloadUrl = $reporteGenerador->generarReporte(
@@ -151,12 +178,14 @@ public static function table(Table $table): Table
                                 'ubicacion' => 'Ubicación',
                                 'estado_item' => 'Estado',
                             ],
-                            nombreArchivo: 'reportes_inventario_' . date('Y-m-d_H-i-s') . '.pdf'
+                            nombreArchivo: 'reportes_inventario_' . date('Y-m-d_H-i-s') . '.pdf',
+                            orientacion: 'landscape'
                         );
 
                         \Filament\Notifications\Notification::make()
-                            ->title('Reportes generados')
-                            ->body('Se procesaron ' . $records->count() . ' registros.')
+                            ->title('Reportes generados exitosamente')
+                            ->body('Se procesaron ' . $records->count() . ' items.' .
+                                ($originalCount > $limit ? " (Limitado de {$originalCount} registros)" : ''))
                             ->success()
                             ->actions([
                                 \Filament\Notifications\Actions\Action::make('download')
@@ -168,7 +197,8 @@ public static function table(Table $table): Table
                             ->duration(15000)
                             ->send();
                     } catch (\Exception $e) {
-                        \Log::error('Error generando reportes: ' . $e->getMessage());
+                        \Log::error('Error generando reportes de inventario: ' . $e->getMessage());
+
                         \Filament\Notifications\Notification::make()
                             ->title('Error')
                             ->body('No se pudieron generar los reportes: ' . $e->getMessage())
@@ -176,15 +206,17 @@ public static function table(Table $table): Table
                             ->send();
                     }
                 })
-                ->color('success'),
-        ]);
+                ->color('success')
+                ->visible(fn() => auth()->user()?->tienePermiso('inventario_laboratorio.ver') ?? false),
+            ]);
+
 }
 
 
     public static function getRelations(): array
     {
         return [
-            //
+
         ];
     }
 

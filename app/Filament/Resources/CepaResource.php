@@ -98,13 +98,41 @@ class CepaResource extends Resource
                     ->color('success'),
             ])
             ->bulkActions([
-                Tables\Actions\DeleteBulkAction::make()->visible(fn () => auth()->user()?->tienePermiso('cepa.eliminar') ?? false),
+                Tables\Actions\DeleteBulkAction::make()
+                    ->visible(fn () => auth()->user()?->tienePermiso('cepa.eliminar') ?? false),
 
-                // Acción de generar reportes en bulk
                 Tables\Actions\BulkAction::make('generar_reporte_bulk')
-                    ->label('Generar Reportes')
+                    ->label('Generar PDFs')
                     ->icon('heroicon-o-printer')
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Reporte de Cepas')
+                    ->modalDescription(function (Collection $records) {
+                        $count = $records->count();
+                        $limit = 100;
+
+                        if ($count > $limit) {
+                            return "⚠️ ADVERTENCIA: Has seleccionado {$count} registros.
+                                    Para evitar problemas de memoria, se procesarán solo los primeros {$limit} registros.
+                                    Te recomendamos usar filtros para reducir la selección.";
+                        }
+
+                        return "Se generará un PDF con {$count} cepas seleccionadas.";
+                    })
+                    ->modalSubmitActionLabel('Generar PDF')
                     ->action(function (Collection $records) {
+                        $limit = 100;
+                        $originalCount = $records->count();
+                        if ($originalCount > $limit) {
+                            $records = $records->take($limit);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Información')
+                                ->body("Se limitó el reporte a {$limit} registros de {$originalCount} seleccionados para evitar problemas de memoria.")
+                                ->warning()
+                                ->duration(5000)
+                                ->send();
+                        }
+
                         try {
                             $reporteGenerador = new ReporteGenerador();
                             $downloadUrl = $reporteGenerador->generarReporte(
@@ -120,7 +148,8 @@ class CepaResource extends Resource
 
                             \Filament\Notifications\Notification::make()
                                 ->title('Reportes generados exitosamente')
-                                ->body('Se procesaron ' . $records->count() . ' registros.')
+                                ->body('Se procesaron ' . $records->count() . ' registros.' .
+                                    ($originalCount > $limit ? " (Limitado de {$originalCount} registros)" : ''))
                                 ->success()
                                 ->actions([
                                     \Filament\Notifications\Actions\Action::make('download')
@@ -133,7 +162,7 @@ class CepaResource extends Resource
                                 ->send();
 
                         } catch (\Exception $e) {
-                            \Log::error('Error generando reportes: ' . $e->getMessage());
+                            \Log::error('Error generando reportes de cepas: ' . $e->getMessage());
 
                             \Filament\Notifications\Notification::make()
                                 ->title('Error al generar reportes')
@@ -143,7 +172,8 @@ class CepaResource extends Resource
                         }
                     })
                     ->color('success'),
-            ]);
+                ]);
+
     }
 
     public static function getRelations(): array

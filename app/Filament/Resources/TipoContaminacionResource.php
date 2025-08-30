@@ -46,7 +46,7 @@ class TipoContaminacionResource extends Resource
                     ->searchable(),
             ])
             ->filters([
-                //
+
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
@@ -56,7 +56,6 @@ class TipoContaminacionResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('tipo_contaminacion.eliminar') ?? false),
 
-                // Acción individual para generar PDF
                 Tables\Actions\Action::make('generar_reporte')
                     ->label('Generar Reporte')
                     ->icon('heroicon-o-printer')
@@ -101,11 +100,37 @@ class TipoContaminacionResource extends Resource
                 Tables\Actions\DeleteBulkAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('tipo_contaminacion.eliminar') ?? false),
 
-                // Acción bulk para generar PDF
                 Tables\Actions\BulkAction::make('generar_reporte_bulk')
                     ->label('Generar Reportes')
                     ->icon('heroicon-o-printer')
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Reporte de Tipos de Contaminación')
+                    ->modalDescription(function (Collection $records) {
+                        $count = $records->count();
+                        $limit = 100;
+
+                        if ($count > $limit) {
+                            return "⚠️ ADVERTENCIA: Has seleccionado {$count} registros. Para evitar problemas de memoria, se procesarán solo los primeros {$limit} registros. Te recomendamos usar filtros para reducir la selección.";
+                        }
+
+                        return "Se generará un PDF con {$count} registros seleccionados.";
+                    })
+                    ->modalSubmitActionLabel('Generar PDF')
                     ->action(function (Collection $records) {
+                        $limit = 100;
+                        $originalCount = $records->count();
+
+                        if ($originalCount > $limit) {
+                            $records = $records->take($limit);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Información')
+                                ->body("Se limitó el reporte a {$limit} registros de {$originalCount} seleccionados para evitar problemas de memoria.")
+                                ->warning()
+                                ->duration(5000)
+                                ->send();
+                        }
+
                         try {
                             $reporteGenerador = new ReporteGenerador();
                             $downloadUrl = $reporteGenerador->generarReporte(
@@ -120,7 +145,8 @@ class TipoContaminacionResource extends Resource
 
                             \Filament\Notifications\Notification::make()
                                 ->title('Reportes generados exitosamente')
-                                ->body('Se procesaron ' . $records->count() . ' registros.')
+                                ->body('Se procesaron ' . $records->count() . ' registros.' .
+                                    ($originalCount > $limit ? " (Limitado de {$originalCount} registros)" : ''))
                                 ->success()
                                 ->actions([
                                     \Filament\Notifications\Actions\Action::make('download')
@@ -140,14 +166,15 @@ class TipoContaminacionResource extends Resource
                                 ->send();
                         }
                     })
-                    ->color('success'),
-            ]);
+                    ->color('success')
+                    ->visible(fn() => auth()->user()?->tienePermiso('tipo_contaminacion.ver') ?? false),
+                ]);
     }
 
     public static function getRelations(): array
     {
         return [
-            //
+
         ];
     }
 

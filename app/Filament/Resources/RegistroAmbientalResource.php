@@ -52,21 +52,20 @@ class RegistroAmbientalResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.ver') ?? false),
-                
+
                 Tables\Actions\EditAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.editar') ?? false),
-                
+
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.eliminar') ?? false),
-                
-                // Acción personalizada para generar el reporte de un solo registro
+
                 Tables\Actions\Action::make('generar_reporte')
                     ->label('Reporte')
                     ->icon('heroicon-o-printer')
                     ->action(function (RegistroAmbiental $record) {
                         try {
                             $reporteGenerador = new ReporteGenerador();
-                            
+
                             $downloadUrl = $reporteGenerador->generarReporte(
                                 registros: collect([$record]),
                                 titulo: 'Reporte Ambiental',
@@ -79,7 +78,7 @@ class RegistroAmbientalResource extends Resource
                                 ],
                                 nombreArchivo: 'reporte_ambiental_' . $record->registro_id . '.pdf'
                             );
-                            
+
                             \Filament\Notifications\Notification::make()
                                 ->title('Reporte generado exitosamente')
                                 ->body('El reporte se ha creado correctamente.')
@@ -93,10 +92,10 @@ class RegistroAmbientalResource extends Resource
                                 ])
                                 ->duration(15000)
                                 ->send();
-                            
+
                         } catch (\Exception $e) {
                             \Log::error('Error generando reporte: ' . $e->getMessage());
-                            
+
                             \Filament\Notifications\Notification::make()
                                 ->title('Error al generar reporte')
                                 ->body('Error: ' . $e->getMessage())
@@ -109,65 +108,95 @@ class RegistroAmbientalResource extends Resource
             ->bulkActions([
                 Tables\Actions\DeleteBulkAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('registro_ambiental.eliminar') ?? false),
-                
-                // Acción en bulk para generar reportes de los registros seleccionados
+
                 Tables\Actions\BulkAction::make('generar_reporte_bulk')
-                    ->label('Generar Reportes')
+                    ->label('Generar PDFs')
                     ->icon('heroicon-o-printer')
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Reporte Ambiental')
+                    ->modalDescription(function (Collection $records) {
+                        $count = $records->count();
+                        $limit = 100;
+
+                        if ($count > $limit) {
+                            return "⚠️ ADVERTENCIA: Has seleccionado {$count} registros.
+                            Para evitar problemas de memoria, se procesarán solo los primeros {$limit} registros.
+                            Te recomendamos usar filtros para reducir la selección.";
+                        }
+
+                        return "Se generará un PDF con {$count} registros ambientales seleccionados, agrupados por Sala.";
+                    })
+                    ->modalSubmitActionLabel('Generar PDF')
                     ->action(function (Collection $records) {
+                        $limit = 100;
+                        $originalCount = $records->count();
+
+                        if ($originalCount > $limit) {
+                            $records = $records->take($limit);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Información')
+                                ->body("Se limitó el reporte a {$limit} registros de {$originalCount} seleccionados para evitar problemas de memoria.")
+                                ->warning()
+                                ->duration(5000)
+                                ->send();
+                        }
+
                         try {
-                            $reporteGenerador = new ReporteGenerador();
-                            
+                            $reporteGenerador = new \App\Services\ReporteGenerador();
+
                             $downloadUrl = $reporteGenerador->generarReporte(
                                 registros: $records,
                                 titulo: 'Reporte Ambiental',
                                 columnas: [
                                     'fecha_hora' => 'Fecha y Hora',
-                                    'temperatura_celsius' => 'Temperatura (C)',
+                                    'temperatura_celsius' => 'Temperatura (°C)',
                                     'humedad_relativa' => 'Humedad (%)',
-                                    'co2_ppm' => 'CO2 (ppm)',
-                                    'luz_lm' => 'Lumenes'
+                                    'co2_ppm' => 'CO₂ (ppm)',
+                                    'luz_lm' => 'Lúmenes',
                                 ],
-                                nombreArchivo: 'varios_reportes' . date('Y-m-d_H-i-s') . '.pdf',
+                                nombreArchivo: 'reportes_ambientales_' . date('Y-m-d_H-i-s') . '.pdf',
                                 groupBy: 'sala_id',
                                 opciones: [
                                     'grupo_titulo' => 'Sala',
-                                    'salto_pagina_grupos' => true
+                                    'salto_pagina_grupos' => true,
                                 ]
                             );
-                            
+
                             \Filament\Notifications\Notification::make()
                                 ->title('Reporte generado exitosamente')
-                                ->body('Se procesaron ' . $records->count() . ' registros.')
+                                ->body('Se procesaron ' . $records->count() . ' registros.' .
+                                    ($originalCount > $limit ? " (Limitado de {$originalCount} registros)" : ''))
                                 ->success()
                                 ->actions([
                                     \Filament\Notifications\Actions\Action::make('download')
-                                        ->label('Descargar PDF')
+                                        ->label('Ver PDF')
                                         ->url($downloadUrl)
                                         ->openUrlInNewTab()
                                         ->button()
                                 ])
                                 ->duration(15000)
                                 ->send();
-                            
+
                         } catch (\Exception $e) {
-                            \Log::error('Error generando reporte bulk: ' . $e->getMessage());
-                            
+                            \Log::error('Error generando reportes ambientales: ' . $e->getMessage());
+
                             \Filament\Notifications\Notification::make()
-                                ->title('Error al generar varios reportes')
+                                ->title('Error al generar reportes')
                                 ->body('Error: ' . $e->getMessage())
                                 ->danger()
                                 ->send();
                         }
                     })
-                    ->color('success')
-            ]);
+                    ->color('success'),
+                ]);
+
     }
 
     public static function getRelations(): array
     {
         return [
-            // Relaciones si las necesitas
+
         ];
     }
 

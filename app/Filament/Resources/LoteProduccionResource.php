@@ -174,7 +174,7 @@ public static function form(Form $form): Form
                     ->limit(20),
              Tables\Columns\TagsColumn::make('sustratos')
                     ->label('Sustratos')
-                    ->getStateUsing(fn(\App\Models\LoteProduccion $record) => 
+                    ->getStateUsing(fn(\App\Models\LoteProduccion $record) =>
                         $record->loteSustratos->map(function ($ls) {
                             $nombre = $ls->sustrato?->nombre_sustrato ?? '—';
                             $g = rtrim(rtrim(number_format((float) $ls->cantidad_gramos, 1), '0'), '.');
@@ -311,13 +311,45 @@ public static function form(Form $form): Form
                     ->visible(fn() => auth()->user()?->tienePermiso('lote_produccion.eliminar') ?? false),
 
                 Tables\Actions\BulkAction::make('generar_reporte_bulk')
-                    ->label('Generar Reportes')
+                    ->label('Generar PDFs')
                     ->icon('heroicon-o-printer')
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Reporte de Lotes en Producción')
+                    ->modalDescription(function (Collection $records) {
+                        $count = $records->count();
+                        $limit = 100;
+
+                        if ($count > $limit) {
+                            return "⚠️ ADVERTENCIA: Has seleccionado {$count} registros.
+                            Para evitar problemas de memoria, se procesarán solo los primeros {$limit} registros.
+                            Te recomendamos usar filtros para reducir la selección.";
+                        }
+
+                        return "Se generará un PDF con {$count} lotes seleccionados.";
+                    })
+                    ->modalSubmitActionLabel('Generar PDF')
                     ->action(function (Collection $records) {
+                        $limit = 100;
+                        $originalCount = $records->count();
+                        if ($originalCount > $limit) {
+                            $records = $records->take($limit);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Información')
+                                ->body("Se limitó el reporte a {$limit} registros de {$originalCount} seleccionados para evitar problemas de memoria.")
+                                ->warning()
+                                ->duration(5000)
+                                ->send();
+                        }
+
                         try {
+                            $recordsWithRelations = LoteProduccion::whereIn('lote_id', $records->pluck('lote_id'))
+                                ->with(['cepa', 'loteInoculo', 'procesoEsterilizacion', 'salaCultivo', 'usuarioCreador', 'loteSustratos.sustrato'])
+                                ->get();
+
                             $reporteGenerador = new ReporteGenerador();
                             $downloadUrl = $reporteGenerador->generarReporte(
-                                registros: $records,
+                                registros: $recordsWithRelations,
                                 titulo: 'Reporte de Lotes en Producción',
                                 columnas: [
                                     'lote_id' => 'ID Lote',
@@ -331,16 +363,18 @@ public static function form(Form $form): Form
                                     'metodologia_inoculacion' => 'Metodología',
                                     'notas_generales_lote' => 'Notas',
                                 ],
-                                nombreArchivo: 'reportes_lotes_produccion_' . date('Y-m-d_H-i-s') . '.pdf', orientacion: 'landscape'
+                                nombreArchivo: 'reportes_lotes_produccion_' . date('Y-m-d_H-i-s') . '.pdf',
+                                orientacion: 'landscape'
                             );
 
                             \Filament\Notifications\Notification::make()
                                 ->title('Reportes generados exitosamente')
-                                ->body('Se procesaron ' . $records->count() . ' registros.')
+                                ->body('Se procesaron ' . $recordsWithRelations->count() . ' lotes.' .
+                                    ($originalCount > $limit ? " (Limitado de {$originalCount} registros)" : ''))
                                 ->success()
                                 ->actions([
                                     \Filament\Notifications\Actions\Action::make('download')
-                                        ->label('Ver PDF')
+                                        ->label('Ver PDFs')
                                         ->url($downloadUrl)
                                         ->openUrlInNewTab()
                                         ->button()
@@ -348,7 +382,7 @@ public static function form(Form $form): Form
                                 ->duration(15000)
                                 ->send();
                         } catch (\Exception $e) {
-                            \Log::error('Error generando reportes: ' . $e->getMessage());
+                            \Log::error('Error generando reportes de lotes: ' . $e->getMessage());
                             \Filament\Notifications\Notification::make()
                                 ->title('Error al generar reportes')
                                 ->body('Error: ' . $e->getMessage())
@@ -357,7 +391,8 @@ public static function form(Form $form): Form
                         }
                     })
                     ->color('success'),
-            ]);
+                ]);
+
     }
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {

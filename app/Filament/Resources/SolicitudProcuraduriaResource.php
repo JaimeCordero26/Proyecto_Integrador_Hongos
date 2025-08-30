@@ -77,7 +77,6 @@ class SolicitudProcuraduriaResource extends Resource
                 Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('solicitud_procuraduria.editar') ?? false),
                 Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('solicitud_procuraduria.eliminar') ?? false),
 
-                // Acción para generar PDF
                 Tables\Actions\Action::make('generar_reporte')
                     ->label('Generar Reporte')
                     ->icon('heroicon-o-printer')
@@ -115,44 +114,86 @@ class SolicitudProcuraduriaResource extends Resource
                     ->color('success'),
             ])
             ->bulkActions([
-                Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('solicitud_procuraduria.eliminar') ?? false),
+                Tables\Actions\DeleteBulkAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('solicitud_procuraduria.eliminar') ?? false),
 
                 Tables\Actions\BulkAction::make('generar_reporte_bulk')
                     ->label('Generar Reportes')
                     ->icon('heroicon-o-printer')
-                    ->action(function (Collection $records) {
-                        $reporteGenerador = new ReporteGenerador();
-                        $downloadUrl = $reporteGenerador->generarReporte(
-                            registros: $records,
-                            titulo: 'Reporte de Solicitudes de Procuraduría',
-                            columnas: [
-                                'item_nombre' => 'Item',
-                                'descripcion_item_nuevo' => 'Descripción',
-                                'usuario_solicitante_nombre' => 'Solicitante',
-                                'fecha_solicitud' => 'Fecha Solicitud',
-                                'cantidad_solicitada' => 'Cantidad',
-                                'justificacion' => 'Justificación',
-                                'estado_solicitud' => 'Estado',
-                            ],
-                            nombreArchivo: 'reportes_solicitudes_' . date('Y-m-d_H-i-s') . '.pdf', orientacion: 'landscape'
-                        );
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Reporte de Solicitudes')
+                    ->modalDescription(function (Collection $records) {
+                        $count = $records->count();
+                        $limit = 100;
 
-                        \Filament\Notifications\Notification::make()
-                            ->title('Reportes generados exitosamente')
-                            ->body('Se procesaron ' . $records->count() . ' registros.')
-                            ->success()
-                            ->actions([
-                                \Filament\Notifications\Actions\Action::make('download')
-                                    ->label('Ver PDF')
-                                    ->url($downloadUrl)
-                                    ->openUrlInNewTab()
-                                    ->button()
-                            ])
-                            ->duration(15000)
-                            ->send();
+                        if ($count > $limit) {
+                            return "⚠️ Seleccionaste {$count} solicitudes. Solo se procesarán las primeras {$limit} para evitar problemas de memoria.";
+                        }
+
+                        return "Se generará un PDF con {$count} solicitudes seleccionadas.";
+                    })
+                    ->modalSubmitActionLabel('Generar PDF')
+                    ->action(function (Collection $records) {
+                        $limit = 100;
+                        $originalCount = $records->count();
+
+                        if ($originalCount > $limit) {
+                            $records = $records->take($limit);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Información')
+                                ->body("Se limitaron a {$limit} de {$originalCount} registros para evitar problemas de memoria.")
+                                ->warning()
+                                ->duration(5000)
+                                ->send();
+                        }
+
+                        try {
+                            $reporteGenerador = new \App\Services\ReporteGenerador();
+
+                            $downloadUrl = $reporteGenerador->generarReporte(
+                                registros: $records,
+                                titulo: 'Reporte de Solicitudes de Procuraduría',
+                                columnas: [
+                                    'item_nombre' => 'Item',
+                                    'descripcion_item_nuevo' => 'Descripción',
+                                    'usuario_solicitante_nombre' => 'Solicitante',
+                                    'fecha_solicitud' => 'Fecha Solicitud',
+                                    'cantidad_solicitada' => 'Cantidad',
+                                    'justificacion' => 'Justificación',
+                                    'estado_solicitud' => 'Estado',
+                                ],
+                                nombreArchivo: 'reportes_solicitudes_' . date('Y-m-d_H-i-s') . '.pdf',
+                                orientacion: 'landscape'
+                            );
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Reportes generados exitosamente')
+                                ->body('Se procesaron ' . $records->count() . ' registros.' .
+                                    ($originalCount > $limit ? " (Limitado de {$originalCount})" : ''))
+                                ->success()
+                                ->actions([
+                                    \Filament\Notifications\Actions\Action::make('download')
+                                        ->label('Ver PDF')
+                                        ->url($downloadUrl)
+                                        ->openUrlInNewTab()
+                                        ->button()
+                                ])
+                                ->duration(15000)
+                                ->send();
+                        } catch (\Exception $e) {
+                            \Log::error('Error generando reportes de solicitudes: ' . $e->getMessage());
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error al generar reportes')
+                                ->body('Error: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     })
                     ->color('success'),
-            ]);
+                ]);
+
     }
 
     public static function getRelations(): array

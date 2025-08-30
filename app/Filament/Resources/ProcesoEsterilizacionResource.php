@@ -94,7 +94,6 @@ class ProcesoEsterilizacionResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('proceso_esterilizacion.eliminar') ?? false),
 
-                // Acción individual para generar reporte
                 Tables\Actions\Action::make('generar_reporte')
                     ->label('Generar Reporte')
                     ->icon('heroicon-o-printer')
@@ -142,13 +141,42 @@ class ProcesoEsterilizacionResource extends Resource
                 Tables\Actions\DeleteBulkAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('proceso_esterilizacion.eliminar') ?? false),
 
-                // Acción bulk para generar reportes
                 Tables\Actions\BulkAction::make('generar_reporte_bulk')
-                    ->label('Generar Reportes')
+                    ->label('Generar PDFs')
                     ->icon('heroicon-o-printer')
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Reporte de Procesos de Esterilización')
+                    ->modalDescription(function (Collection $records) {
+                        $count = $records->count();
+                        $limit = 100;
+
+                        if ($count > $limit) {
+                            return "⚠️ ADVERTENCIA: Has seleccionado {$count} registros.
+                            Para evitar problemas de memoria, se procesarán solo los primeros {$limit} registros.
+                            Te recomendamos usar filtros para reducir la selección.";
+                        }
+
+                        return "Se generará un PDF con {$count} procesos seleccionados.";
+                    })
+                    ->modalSubmitActionLabel('Generar PDF')
                     ->action(function (Collection $records) {
+                        $limit = 100;
+                        $originalCount = $records->count();
+
+                        if ($originalCount > $limit) {
+                            $records = $records->take($limit);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Información')
+                                ->body("Se limitó el reporte a {$limit} registros de {$originalCount} seleccionados para evitar problemas de memoria.")
+                                ->warning()
+                                ->duration(5000)
+                                ->send();
+                        }
+
                         try {
-                            $reporteGenerador = new ReporteGenerador();
+                            $reporteGenerador = new \App\Services\ReporteGenerador();
+
                             $downloadUrl = $reporteGenerador->generarReporte(
                                 registros: $records,
                                 titulo: 'Reporte de Procesos de Esterilización',
@@ -164,7 +192,8 @@ class ProcesoEsterilizacionResource extends Resource
 
                             \Filament\Notifications\Notification::make()
                                 ->title('Reportes generados exitosamente')
-                                ->body('Se procesaron ' . $records->count() . ' registros.')
+                                ->body('Se procesaron ' . $records->count() . ' procesos.' .
+                                    ($originalCount > $limit ? " (Limitado de {$originalCount} registros)" : ''))
                                 ->success()
                                 ->actions([
                                     \Filament\Notifications\Actions\Action::make('download')
@@ -175,8 +204,9 @@ class ProcesoEsterilizacionResource extends Resource
                                 ])
                                 ->duration(15000)
                                 ->send();
+
                         } catch (\Exception $e) {
-                            \Log::error('Error generando reportes: ' . $e->getMessage());
+                            \Log::error('Error generando reportes de procesos: ' . $e->getMessage());
                             \Filament\Notifications\Notification::make()
                                 ->title('Error al generar reportes')
                                 ->body('Error: ' . $e->getMessage())
@@ -185,7 +215,8 @@ class ProcesoEsterilizacionResource extends Resource
                         }
                     })
                     ->color('success'),
-            ]);
+                ]);
+
     }
 
     public static function getRelations(): array

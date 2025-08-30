@@ -25,7 +25,7 @@ class UnidadProduccionResource extends Resource
     protected static string $permPrefix = 'unidad_produccion';
     protected static ?string $model = UnidadProduccion::class;
     protected static ?string $navigationLabel = "Unidades de Producción";
-    protected static ?string $pluralModelLabel = 'Unidades de Producción';    
+    protected static ?string $pluralModelLabel = 'Unidades de Producción';
     protected static ?string $navigationIcon = 'heroicon-o-squares-2x2';
 
 public static function form(Form $form): Form
@@ -39,9 +39,8 @@ public static function form(Form $form): Form
                 ->required()
                 ->placeholder('Selecciona un lote')
                 ->preload()
-                ->live(), // 👈 reactivo para recalcular disponible
+                ->live(),
 
-            // Muestra disponible según el lote elegido
             Forms\Components\Placeholder::make('disponible_lote')
                 ->label('Disponible en el lote')
                 ->content(function (Get $get) {
@@ -64,7 +63,7 @@ public static function form(Form $form): Form
                 ->required()
                 ->numeric()
                 ->minValue(0.1)
-                // Límite visual/dinámico en el input
+
                 ->maxValue(function (Get $get) {
                     $loteId = (int) ($get('lote_id') ?? 0);
                     if (!$loteId) return null;
@@ -72,13 +71,13 @@ public static function form(Form $form): Form
                     return self::gramosDisponibles($loteId, $unidadId);
                 })
                 ->live()
-                // Regla de validación de servidor (seguridad)
+
                 ->rules([
                     function (Get $get) {
                         return function (string $attribute, $value, Closure $fail) use ($get) {
                             $loteId = (int) ($get('lote_id') ?? 0);
                             if (!$loteId) {
-                                return; // ya fallará por required en lote_id
+                                return;
                             }
                             $unidadId = self::unidadActualIdDesdeRuta();
                             $disponible = self::gramosDisponibles($loteId, $unidadId);
@@ -148,7 +147,6 @@ public static function form(Form $form): Form
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('unidad_produccion.eliminar') ?? false),
 
-                // Acción individual para generar PDF de la Unidad de Producción
                 Tables\Actions\Action::make('pdf_unidad_produccion')
                     ->label('Generar PDF')
                     ->icon('heroicon-o-printer')
@@ -198,11 +196,37 @@ public static function form(Form $form): Form
                 Tables\Actions\DeleteBulkAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('unidad_produccion.eliminar') ?? false),
 
-                // Bulk PDF de Unidades de Producción
                 Tables\Actions\BulkAction::make('pdf_unidades_produccion_bulk')
                     ->label('Generar PDFs')
                     ->icon('heroicon-o-printer')
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Reporte de Unidades de Producción')
+                    ->modalDescription(function (Collection $records) {
+                        $count = $records->count();
+                        $limit = 100;
+
+                        if ($count > $limit) {
+                            return "⚠️ ADVERTENCIA: Has seleccionado {$count} unidades. Para evitar problemas de memoria, se procesarán solo las primeras {$limit} unidades. Te recomendamos usar filtros para reducir la selección.";
+                        }
+
+                        return "Se generará un PDF con {$count} unidades seleccionadas.";
+                    })
+                    ->modalSubmitActionLabel('Generar PDF')
                     ->action(function (Collection $records) {
+                        $limit = 100;
+                        $originalCount = $records->count();
+
+                        if ($originalCount > $limit) {
+                            $records = $records->take($limit);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Información')
+                                ->body("Se limitó el reporte a {$limit} unidades de {$originalCount} seleccionadas para evitar problemas de memoria.")
+                                ->warning()
+                                ->duration(5000)
+                                ->send();
+                        }
+
                         try {
                             $reporteGenerador = new ReporteGenerador();
                             $downloadUrl = $reporteGenerador->generarReporte(
@@ -222,7 +246,8 @@ public static function form(Form $form): Form
 
                             \Filament\Notifications\Notification::make()
                                 ->title('Reportes generados exitosamente')
-                                ->body('Se procesaron ' . $records->count() . ' unidades.')
+                                ->body('Se procesaron ' . $records->count() . ' unidades.' .
+                                    ($originalCount > $limit ? " (Limitado de {$originalCount} unidades)" : ''))
                                 ->success()
                                 ->actions([
                                     \Filament\Notifications\Actions\Action::make('download')
@@ -242,8 +267,9 @@ public static function form(Form $form): Form
                                 ->send();
                         }
                     })
-                    ->color('success'),
-            ]);
+                    ->color('success')
+                    ->visible(fn() => auth()->user()?->tienePermiso('unidad_produccion.ver') ?? false),
+                ]);
     }
 
     public static function getRelations(): array
@@ -266,7 +292,6 @@ public static function form(Form $form): Form
     if (!$lote) {
         return 0.0;
     }
-    // Usa el accessor (kg) y pásalo a gramos
     return (float) ($lote->peso_sustrato_seco_kg * 1000);
 }
 
@@ -274,7 +299,6 @@ protected static function gramosAsignadosEnUnidades(int $loteId, ?int $excluirUn
 {
     $q = Unidad::query()->where('lote_id', $loteId);
     if ($excluirUnidadId) {
-        // ⚠️ Cambia 'unidad_id' por tu PK real si es distinto
         $q->where('unidad_id', '!=', $excluirUnidadId);
     }
     return (float) $q->sum('peso_inicial_gramos');
@@ -287,7 +311,6 @@ protected static function gramosDisponibles(int $loteId, ?int $excluirUnidadId =
     return max(0.0, $total - $asignado);
 }
 
-// Toma el id de la unidad desde la URL de Filament en páginas de edición
 protected static function unidadActualIdDesdeRuta(): ?int
 {
     $record = request()->route('record');
