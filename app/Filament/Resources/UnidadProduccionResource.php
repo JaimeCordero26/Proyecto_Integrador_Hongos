@@ -12,6 +12,10 @@ use Filament\Tables\Table;
 use App\Filament\Support\HasCrudPermissions;
 use App\Services\ReporteGenerador;
 use Illuminate\Support\Collection;
+use Filament\Forms\Get;
+use Closure;
+use App\Models\LoteProduccion;
+use App\Models\UnidadProduccion as Unidad;
 
 class UnidadProduccionResource extends Resource
 {
@@ -24,42 +28,88 @@ class UnidadProduccionResource extends Resource
     protected static ?string $pluralModelLabel = 'Unidades de Producción';    
     protected static ?string $navigationIcon = 'heroicon-o-squares-2x2';
 
-    public static function form(Form $form): Form
-    {
-        return $form
-            ->schema([
-                Forms\Components\Select::make('lote_id')
-                    ->relationship('loteProduccion', 'lote_id')
-                    ->getOptionLabelFromRecordUsing(fn ($record) => "Lote {$record->lote_id}")
-                    ->searchable()
-                    ->required()
-                    ->placeholder('Selecciona un lote')
-                    ->preload(),
+public static function form(Form $form): Form
+{
+    return $form
+        ->schema([
+            Forms\Components\Select::make('lote_id')
+                ->relationship('loteProduccion', 'lote_id')
+                ->getOptionLabelFromRecordUsing(fn ($record) => "Lote {$record->lote_id}")
+                ->searchable()
+                ->required()
+                ->placeholder('Selecciona un lote')
+                ->preload()
+                ->live(), // 👈 reactivo para recalcular disponible
 
-                Forms\Components\TextInput::make('codigo_unidad')
-                    ->required()
-                    ->maxLength(255),
+            // Muestra disponible según el lote elegido
+            Forms\Components\Placeholder::make('disponible_lote')
+                ->label('Disponible en el lote')
+                ->content(function (Get $get) {
+                    $loteId = (int) ($get('lote_id') ?? 0);
+                    if (!$loteId) {
+                        return '—';
+                    }
+                    $unidadId = self::unidadActualIdDesdeRuta();
+                    $disp = self::gramosDisponibles($loteId, $unidadId);
+                    return number_format($disp, 1, '.', '') . ' g';
+                })
+                ->columnSpanFull(),
 
-                Forms\Components\TextInput::make('peso_inicial_gramos')
-                    ->required()
-                    ->numeric(),
+            Forms\Components\TextInput::make('codigo_unidad')
+                ->required()
+                ->maxLength(255),
 
-                Forms\Components\DatePicker::make('fecha_inoculacion')
-                    ->required(),
+            Forms\Components\TextInput::make('peso_inicial_gramos')
+                ->label('Peso inicial (g)')
+                ->required()
+                ->numeric()
+                ->minValue(0.1)
+                // Límite visual/dinámico en el input
+                ->maxValue(function (Get $get) {
+                    $loteId = (int) ($get('lote_id') ?? 0);
+                    if (!$loteId) return null;
+                    $unidadId = self::unidadActualIdDesdeRuta();
+                    return self::gramosDisponibles($loteId, $unidadId);
+                })
+                ->live()
+                // Regla de validación de servidor (seguridad)
+                ->rules([
+                    function (Get $get) {
+                        return function (string $attribute, $value, Closure $fail) use ($get) {
+                            $loteId = (int) ($get('lote_id') ?? 0);
+                            if (!$loteId) {
+                                return; // ya fallará por required en lote_id
+                            }
+                            $unidadId = self::unidadActualIdDesdeRuta();
+                            $disponible = self::gramosDisponibles($loteId, $unidadId);
+                            $valor = (float) $value;
+                            if ($valor > $disponible + 1e-6) {
+                                $fail("No puedes exceder el disponible del lote ({$disponible} g).");
+                            }
+                            if ($valor <= 0) {
+                                $fail('El peso debe ser mayor que 0.');
+                            }
+                        };
+                    },
+                ]),
 
-                Forms\Components\TextInput::make('estado_unidad')
-                    ->maxLength(255),
+            Forms\Components\DatePicker::make('fecha_inoculacion')
+                ->required(),
 
-                Forms\Components\Select::make('tipo_contaminacion_id')
-                    ->relationship('tipoContaminacion', 'nombre_comun')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
+            Forms\Components\TextInput::make('estado_unidad')
+                ->maxLength(255),
 
-                Forms\Components\Textarea::make('notas_contaminacion')
-                    ->columnSpanFull(),
-            ]);
-    }
+            Forms\Components\Select::make('tipo_contaminacion_id')
+                ->relationship('tipoContaminacion', 'nombre_comun')
+                ->searchable()
+                ->preload()
+                ->required(),
+
+            Forms\Components\Textarea::make('notas_contaminacion')
+                ->columnSpanFull(),
+        ]);
+}
+
 
     public static function table(Table $table): Table
     {
@@ -210,4 +260,38 @@ class UnidadProduccionResource extends Resource
             'edit' => Pages\EditUnidadProduccion::route('/{record}/edit'),
         ];
     }
+    protected static function gramosTotalesDelLote(int $loteId): float
+{
+    $lote = LoteProduccion::with('loteSustratos')->find($loteId);
+    if (!$lote) {
+        return 0.0;
+    }
+    // Usa el accessor (kg) y pásalo a gramos
+    return (float) ($lote->peso_sustrato_seco_kg * 1000);
+}
+
+protected static function gramosAsignadosEnUnidades(int $loteId, ?int $excluirUnidadId = null): float
+{
+    $q = Unidad::query()->where('lote_id', $loteId);
+    if ($excluirUnidadId) {
+        // ⚠️ Cambia 'unidad_id' por tu PK real si es distinto
+        $q->where('unidad_id', '!=', $excluirUnidadId);
+    }
+    return (float) $q->sum('peso_inicial_gramos');
+}
+
+protected static function gramosDisponibles(int $loteId, ?int $excluirUnidadId = null): float
+{
+    $total = self::gramosTotalesDelLote($loteId);
+    $asignado = self::gramosAsignadosEnUnidades($loteId, $excluirUnidadId);
+    return max(0.0, $total - $asignado);
+}
+
+// Toma el id de la unidad desde la URL de Filament en páginas de edición
+protected static function unidadActualIdDesdeRuta(): ?int
+{
+    $record = request()->route('record');
+    return $record ? (int) $record : null;
+}
+
 }

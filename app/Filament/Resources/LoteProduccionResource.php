@@ -12,6 +12,7 @@ use App\Filament\Support\HasCrudPermissions;
 use Illuminate\Database\Eloquent\Collection;
 use App\Services\ReporteGenerador;
 use App\Filament\Resources\LoteProduccionResource\Pages;
+use Filament\Forms\Get;
 
 class LoteProduccionResource extends Resource
 {
@@ -24,101 +25,230 @@ class LoteProduccionResource extends Resource
     protected static ?string $navigationLabel = "Lotes en Producción";
     protected static ?string $navigationIcon = 'heroicon-o-cube';
 
-    public static function form(Form $form): Form
-    {
-        return $form
-            ->schema([
-                Forms\Components\Select::make('cepa_id')
-                    ->relationship('cepa', 'nombre_cientifico')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\Select::make('lote_inoculo_id')
-                    ->relationship('loteInoculo', 'lote_inoculo_id')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\Select::make('proceso_esterilizacion_id')
-                    ->relationship('procesoEsterilizacion', 'metodo')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\TextInput::make('peso_sustrato_seco_kg')
-                    ->label('Peso Sustrato (kg)')
-                    ->numeric()
-                    ->step(0.01)
-                    ->suffix('kg')
-                    ->required(),
-                Forms\Components\Select::make('sala_id')
-                    ->relationship('salaCultivo', 'nombre_sala')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\Select::make('usuario_creador_id')
-                    ->relationship('usuarioCreador', 'nombre_completo')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\DatePicker::make('fecha_creacion_lote')
-                    ->required(),
-                Forms\Components\Textarea::make('metodologia_inoculacion')
-                    ->columnSpanFull(),
-                Forms\Components\Textarea::make('notas_generales_lote')
-                    ->columnSpanFull()
-            ]);
-    }
+
+public static function form(Form $form): Form
+{
+    return $form
+        ->schema([
+            Forms\Components\Section::make('Información Básica del Lote')
+                ->schema([
+                    Forms\Components\Grid::make(2)
+                        ->schema([
+                            Forms\Components\Select::make('cepa_id')
+                                ->relationship('cepa', 'nombre_cientifico')
+                                ->searchable()
+                                ->preload()
+                                ->required(),
+                            Forms\Components\Select::make('lote_inoculo_id')
+                                ->relationship('loteInoculo', 'lote_inoculo_id')
+                                ->searchable()
+                                ->preload()
+                                ->required(),
+                            Forms\Components\Select::make('proceso_esterilizacion_id')
+                                ->relationship('procesoEsterilizacion', 'metodo')
+                                ->searchable()
+                                ->preload()
+                                ->required(),
+                            Forms\Components\Select::make('sala_id')
+                                ->relationship('salaCultivo', 'nombre_sala')
+                                ->searchable()
+                                ->preload()
+                                ->required(),
+                            Forms\Components\Select::make('usuario_creador_id')
+                                ->relationship('usuarioCreador', 'nombre_completo')
+                                ->searchable()
+                                ->preload()
+                                ->required(),
+                            Forms\Components\DatePicker::make('fecha_creacion_lote')
+                                ->required()
+                                ->default(now()),
+                        ]),
+                ]),
+
+            Forms\Components\Section::make('Composición de Sustratos')
+                ->description('Especifica qué sustratos usarás y en qué cantidades para este lote')
+                ->schema([
+                    Forms\Components\Repeater::make('loteSustratos')
+                        ->relationship('loteSustratos')
+                        ->schema([
+                            Forms\Components\Select::make('sustrato_id')
+                                ->label('Sustrato')
+                                ->relationship('sustrato', 'nombre_sustrato')
+                                ->required()
+                                ->searchable()
+                                ->distinct()
+                                ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
+                            Forms\Components\TextInput::make('cantidad_gramos')
+                                ->label('Cantidad (gramos)')
+                                ->numeric()
+                                ->required()
+                                ->suffix('g')
+                                ->step(0.1)
+                                ->minValue(0.1)
+                                ->live(true),
+                        ])
+                        ->columns(2)
+                        ->label('Sustratos utilizados')
+                        ->addActionLabel('Agregar sustrato')
+                        ->required()
+                        ->minItems(1)
+                        ->maxItems(10)
+                        ->itemLabel(fn (array $state): ?string =>
+                            $state['sustrato_id']
+                                ? \App\Models\Sustrato::find($state['sustrato_id'])?->nombre_sustrato . ' - ' . ($state['cantidad_gramos'] ?? 0) . 'g'
+                                : 'Nuevo sustrato'
+                        )
+                        ->collapsible()
+                        ->cloneable()
+                        ->live(true),
+                    Forms\Components\Placeholder::make('total_calculado')
+                        ->content(function (Get $get) {
+                            $items = $get('loteSustratos') ?? [];
+                            $totalG = 0.0;
+                            foreach ($items as $it) {
+                                $totalG += (float) ($it['cantidad_gramos'] ?? 0);
+                            }
+                            $gIsInt = abs($totalG - round($totalG)) < 0.0005;
+                            $gStr = $gIsInt
+                                ? number_format((float) round($totalG), 0, '.', '')
+                                : number_format($totalG, 1, '.', '');
+
+                            $kg = $totalG / 1000;
+                            $kgIsInt = abs($kg - round($kg)) < 0.0005;
+                            $kgStr = $kgIsInt
+                                ? number_format((float) round($kg), 0, '.', '')
+                                : number_format($kg, 3, '.', '');
+
+                            return "{$gStr} g ({$kgStr} Kg)";
+                        })
+
+                        ->columnSpanFull()
+                        ->helperText('Se calcula automáticamente con base en las cantidades de los sustratos.'),
+                ]),
+
+            Forms\Components\Section::make('Metodología y Observaciones')
+                ->schema([
+                    Forms\Components\Textarea::make('metodologia_inoculacion')
+                        ->label('Metodología de Inoculación')
+                        ->placeholder('Describe el proceso de inoculación utilizado...')
+                        ->rows(3)
+                        ->columnSpanFull(),
+                    Forms\Components\Textarea::make('notas_generales_lote')
+                        ->label('Notas Generales del Lote')
+                        ->placeholder('Observaciones adicionales, condiciones especiales, etc...')
+                        ->rows(3)
+                        ->columnSpanFull(),
+                ]),
+        ]);
+}
+
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('lote_id')
-                    ->label('ID Lote')
+                    ->label('ID')
                     ->sortable()
-                    ->numeric(),
+                    ->numeric()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('cepa.nombre_cientifico')
                     ->label('Cepa')
                     ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('loteInoculo.lote_inoculo_id')
-                    ->label('Lote Inóculo ID')
-                    ->sortable()
-                    ->numeric(),
-                Tables\Columns\TextColumn::make('procesoEsterilizacion.metodo')
-                    ->label('Proceso Esterilización')
-                    ->sortable()
                     ->searchable()
-                    ->placeholder('Sin proceso'),
-                Tables\Columns\TextColumn::make('peso_sustrato_seco_kg')
-                    ->label('Peso Sustrato (kg)')
+                    ->limit(30)
+                    ->tooltip(function (Tables\Columns\TextColumn $column): ?string {
+                        $state = $column->getState();
+                        return strlen($state) > 30 ? $state : null;
+                    }),
+                Tables\Columns\TextColumn::make('loteInoculo.lote_inoculo_id')
+                    ->label('Inóculo ID')
                     ->sortable()
                     ->numeric()
-                    ->formatStateUsing(fn ($state) => number_format($state, 2) . ' kg'),
+                    ->alignCenter(),
+                Tables\Columns\TextColumn::make('procesoEsterilizacion.metodo')
+                    ->label('Esterilización')
+                    ->sortable()
+                    ->searchable()
+                    ->placeholder('Sin proceso')
+                    ->limit(20),
+             Tables\Columns\TagsColumn::make('sustratos')
+                    ->label('Sustratos')
+                    ->getStateUsing(fn(\App\Models\LoteProduccion $record) => 
+                        $record->loteSustratos->map(function ($ls) {
+                            $nombre = $ls->sustrato?->nombre_sustrato ?? '—';
+                            $g = rtrim(rtrim(number_format((float) $ls->cantidad_gramos, 1), '0'), '.');
+                            return "{$nombre} ({$g}g)";
+                        })->all()
+                    )
+                    ->limit(4)
+                    ->separator(', ')
+                    ->searchable(),
+
                 Tables\Columns\TextColumn::make('salaCultivo.nombre_sala')
                     ->label('Sala')
                     ->sortable()
                     ->searchable()
-                    ->placeholder('Sin sala'),
+                    ->placeholder('Sin sala')
+                    ->limit(15),
                 Tables\Columns\TextColumn::make('usuarioCreador.nombre_completo')
-                    ->label('Usuario Creador')
+                    ->label('Creador')
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->limit(20)
+                    ->tooltip(function (Tables\Columns\TextColumn $column): ?string {
+                        $state = $column->getState();
+                        return strlen($state) > 20 ? $state : null;
+                    }),
                 Tables\Columns\TextColumn::make('fecha_creacion_lote')
-                    ->label('Fecha Creación')
+                    ->label('Fecha')
                     ->date('d/m/Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->alignCenter(),
             ])
             ->defaultSort('fecha_creacion_lote', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('cepa_id')
                     ->relationship('cepa', 'nombre_cientifico')
-                    ->label('Cepa'),
+                    ->label('Cepa')
+                    ->multiple()
+                    ->preload(),
                 Tables\Filters\SelectFilter::make('proceso_esterilizacion_id')
                     ->relationship('procesoEsterilizacion', 'metodo')
-                    ->label('Proceso Esterilización'),
+                    ->label('Proceso Esterilización')
+                    ->multiple(),
                 Tables\Filters\SelectFilter::make('sala_id')
                     ->relationship('salaCultivo', 'nombre_sala')
-                    ->label('Sala de Cultivo'),
+                    ->label('Sala de Cultivo')
+                    ->multiple(),
+                Tables\Filters\Filter::make('fecha_creacion')
+                    ->form([
+                        Forms\Components\DatePicker::make('created_from')
+                            ->label('Desde'),
+                        Forms\Components\DatePicker::make('created_until')
+                            ->label('Hasta'),
+                    ])
+                    ->query(function ($query, array $data) {
+                        return $query
+                            ->when(
+                                $data['created_from'],
+                                fn ($query, $date) => $query->whereDate('fecha_creacion_lote', '>=', $date)
+                            )
+                            ->when(
+                                $data['created_until'],
+                                fn ($query, $date) => $query->whereDate('fecha_creacion_lote', '<=', $date)
+                            );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+                        if ($data['created_from'] ?? null) {
+                            $indicators['created_from'] = 'Desde ' . \Carbon\Carbon::parse($data['created_from'])->format('d/m/Y');
+                        }
+                        if ($data['created_until'] ?? null) {
+                            $indicators['created_until'] = 'Hasta ' . \Carbon\Carbon::parse($data['created_until'])->format('d/m/Y');
+                        }
+                        return $indicators;
+                    }),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
@@ -128,7 +258,6 @@ class LoteProduccionResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('lote_produccion.eliminar') ?? false),
 
-                // Acción individual para generar reporte
                 Tables\Actions\Action::make('generar_reporte')
                     ->label('Generar Reporte')
                     ->icon('heroicon-o-printer')
@@ -150,7 +279,7 @@ class LoteProduccionResource extends Resource
                                     'metodologia_inoculacion' => 'Metodología',
                                     'notas_generales_lote' => 'Notas',
                                 ],
-                                nombreArchivo: 'reporte_lote_produccion_' . $record->lote_id . '.pdf'
+                                nombreArchivo: 'reporte_lote_produccion_' . $record->lote_id . '.pdf', orientacion: 'landscape'
                             );
 
                             \Filament\Notifications\Notification::make()
@@ -181,7 +310,6 @@ class LoteProduccionResource extends Resource
                 Tables\Actions\DeleteBulkAction::make()
                     ->visible(fn() => auth()->user()?->tienePermiso('lote_produccion.eliminar') ?? false),
 
-                // Acción bulk para generar reportes
                 Tables\Actions\BulkAction::make('generar_reporte_bulk')
                     ->label('Generar Reportes')
                     ->icon('heroicon-o-printer')
@@ -203,7 +331,7 @@ class LoteProduccionResource extends Resource
                                     'metodologia_inoculacion' => 'Metodología',
                                     'notas_generales_lote' => 'Notas',
                                 ],
-                                nombreArchivo: 'reportes_lotes_produccion_' . date('Y-m-d_H-i-s') . '.pdf'
+                                nombreArchivo: 'reportes_lotes_produccion_' . date('Y-m-d_H-i-s') . '.pdf', orientacion: 'landscape'
                             );
 
                             \Filament\Notifications\Notification::make()
@@ -231,6 +359,12 @@ class LoteProduccionResource extends Resource
                     ->color('success'),
             ]);
     }
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getEloquentQuery()
+            ->with(['loteSustratos.sustrato']);
+    }
+
 
     public static function getRelations(): array
     {

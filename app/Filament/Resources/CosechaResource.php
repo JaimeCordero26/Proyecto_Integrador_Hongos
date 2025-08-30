@@ -15,7 +15,7 @@ use Filament\Forms\Set;
 use App\Filament\Support\HasCrudPermissions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
-use App\Services\ReporteGenerador; // Importar ReporteGenerador
+use App\Services\ReporteGenerador;
 
 class CosechaResource extends Resource
 {
@@ -53,9 +53,10 @@ class CosechaResource extends Resource
                     ->live(onBlur: true)
                     ->afterStateUpdated(function (Get $get, Set $set) {
                         $unidadId = $get('unidad_id');
-                        $pesoCosecha = $get('peso_cosecha_gramos');
-                        if ($unidadId && $pesoCosecha) {
-                            $eficiencia = self::calcularEficienciaBiologica($unidadId, $pesoCosecha);
+                        $pesoCosechaGramos = $get('peso_cosecha_gramos');
+                        
+                        if ($unidadId && $pesoCosechaGramos) {
+                            $eficiencia = self::calcularEficienciaBiologicaConBD($unidadId, $pesoCosechaGramos);
                             $set('eficiencia_biologica_calculada', $eficiencia);
                         } else {
                             $set('eficiencia_biologica_calculada', null);
@@ -69,25 +70,33 @@ class CosechaResource extends Resource
                     ->dehydrated(false)
                     ->suffix('%')
                     ->placeholder('Se calculará automáticamente')
-                    ->helperText('Este valor se calcula automáticamente al guardar'),
+                    ->helperText('Este valor se calcula usando la función de base de datos'),
             ]);
     }
 
-    protected static function calcularEficienciaBiologica($unidadId, $pesoCosechaGramos): ?float
+    /**
+     * Calcula la eficiencia biológica usando la función de PostgreSQL
+     */
+    protected static function calcularEficienciaBiologicaConBD($unidadId, $pesoCosechaGramos): ?float
     {
         try {
             $unidadProduccion = UnidadProduccion::with('loteProduccion')->find($unidadId);
-            if (!$unidadProduccion || !$unidadProduccion->loteProduccion) return null;
+            if (!$unidadProduccion || !$unidadProduccion->loteProduccion) {
+                return null;
+            }
 
             $pesoSustratoSecoKg = $unidadProduccion->loteProduccion->peso_sustrato_seco_kg ?? 0;
-            if ($pesoSustratoSecoKg <= 0 || $pesoCosechaGramos <= 0) return 0;
+            if ($pesoSustratoSecoKg <= 0 || $pesoCosechaGramos <= 0) {
+                return null;
+            }
 
+            // Convertir gramos a kilogramos
             $pesoHongosKg = $pesoCosechaGramos / 1000;
-            $eficiencia = ($pesoHongosKg / $pesoSustratoSecoKg) * 100;
 
-            return round($eficiencia, 2);
+            // Usar el método estático del modelo que usa la función de BD
+            return Cosecha::calcularEficienciaEstatica($pesoHongosKg, $pesoSustratoSecoKg);
         } catch (\Exception $e) {
-            logger('Error calculando eficiencia biológica: ' . $e->getMessage());
+            \Log::error('Error calculando eficiencia biológica: ' . $e->getMessage());
             return null;
         }
     }
@@ -96,46 +105,110 @@ class CosechaResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('unidadProduccion.codigo_unidad')->label('Unidad de Producción')->sortable()->searchable(),
-                Tables\Columns\TextColumn::make('numero_cosecha')->label('N° Cosecha')->sortable(),
-                Tables\Columns\TextColumn::make('peso_cosecha_gramos')->label('Peso (g)')->sortable()->formatStateUsing(fn ($state) => number_format($state, 0) . ' g'),
-                Tables\Columns\TextColumn::make('eficiencia_biologica_calculada')->label('Eficiencia (%)')->sortable()->formatStateUsing(fn ($state) => $state ? number_format($state, 2) . '%' : 'N/A'),
-                Tables\Columns\TextColumn::make('fecha_cosecha')->label('Fecha')->date('d/m/Y')->sortable(),
+                Tables\Columns\TextColumn::make('unidadProduccion.codigo_unidad')
+                    ->label('Unidad de Producción')
+                    ->sortable()
+                    ->searchable(),
+                    
+                Tables\Columns\TextColumn::make('numero_cosecha')
+                    ->label('N° Cosecha')
+                    ->sortable()
+                    ->badge()
+                    ->color('info'),
+                    
+                Tables\Columns\TextColumn::make('peso_cosecha_gramos')
+                    ->label('Peso (g)')
+                    ->sortable()
+                    ->formatStateUsing(fn ($state) => number_format($state, 0) . ' g')
+                    ->color('success'),
+                    
+                Tables\Columns\TextColumn::make('eficiencia_biologica_calculada')
+                    ->label('Eficiencia (%)')
+                    ->sortable()
+                    ->formatStateUsing(fn ($state) => $state ? number_format($state, 2) . '%' : 'N/A')
+                    ->badge()
+                    ->color(fn ($state) => match (true) {
+                        $state >= 80 => 'success',
+                        $state >= 50 => 'warning',
+                        $state > 0 => 'danger',
+                        default => 'gray'
+                    }),
+                    
+                Tables\Columns\TextColumn::make('fecha_cosecha')
+                    ->label('Fecha')
+                    ->date('d/m/Y')
+                    ->sortable(),
             ])
             ->defaultSort('fecha_cosecha', 'desc')
+            ->defaultPaginationPageOption(25)
+            ->paginationPageOptions([10, 25, 50, 100])
             ->filters([
                 Tables\Filters\SelectFilter::make('unidad_id')
                     ->relationship('unidadProduccion', 'codigo_unidad')
-                    ->label('Unidad de Producción'),
+                    ->label('Unidad de Producción')
+                    ->searchable(),
+                    
+                Tables\Filters\Filter::make('eficiencia_alta')
+                    ->label('Alta Eficiencia (≥50%)')
+                    ->query(fn (Builder $query): Builder => $query->altaEficiencia(50)),
+                    
+                Tables\Filters\Filter::make('fecha_cosecha')
+                    ->form([
+                        Forms\Components\DatePicker::make('desde')
+                            ->label('Desde'),
+                        Forms\Components\DatePicker::make('hasta')
+                            ->label('Hasta'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['desde'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('fecha_cosecha', '>=', $date),
+                            )
+                            ->when(
+                                $data['hasta'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('fecha_cosecha', '<=', $date),
+                            );
+                    }),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make()->visible(fn() => auth()->user()?->tienePermiso('cosecha.ver') ?? false),
-                Tables\Actions\EditAction::make()->visible(fn() => auth()->user()?->tienePermiso('cosecha.editar') ?? false),
-                Tables\Actions\DeleteAction::make()->visible(fn() => auth()->user()?->tienePermiso('cosecha.eliminar') ?? false),
+                Tables\Actions\ViewAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('cosecha.ver') ?? false),
+                    
+                Tables\Actions\EditAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('cosecha.editar') ?? false),
+                    
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('cosecha.eliminar') ?? false),
 
                 // Acción individual para generar reporte
                 Tables\Actions\Action::make('generar_reporte')
-                    ->label('Generar Reporte')
+                    ->label('Generar PDF')
                     ->icon('heroicon-o-printer')
                     ->action(function (Cosecha $record) {
                         try {
+                            // Cargar relación si no está cargada
+                            if (!$record->relationLoaded('unidadProduccion')) {
+                                $record->load('unidadProduccion');
+                            }
+                            
                             $reporteGenerador = new ReporteGenerador();
                             $downloadUrl = $reporteGenerador->generarReporte(
                                 registros: collect([$record]),
                                 titulo: 'Reporte de Cosecha',
                                 columnas: [
-                                    'unidadProduccion.codigo_unidad' => 'Unidad de Producción',
+                                    'unidad_codigo' => 'Unidad de Producción',
                                     'numero_cosecha' => 'N° Cosecha',
-                                    'peso_cosecha_gramos' => 'Peso (g)',
-                                    'eficiencia_biologica_calculada' => 'Eficiencia (%)',
-                                    'fecha_cosecha' => 'Fecha',
+                                    'peso_formato' => 'Peso',
+                                    'eficiencia_formato' => 'Eficiencia Biológica',
+                                    'fecha_formato' => 'Fecha de Cosecha',
                                 ],
-                                nombreArchivo: 'reporte_cosecha_' . $record->id . '.pdf'
+                                nombreArchivo: 'reporte_cosecha_' . $record->cosecha_id . '.pdf'
                             );
 
                             \Filament\Notifications\Notification::make()
                                 ->title('Reporte generado exitosamente')
-                                ->body('El reporte se ha creado correctamente.')
+                                ->body('El PDF de la cosecha se ha creado correctamente.')
                                 ->success()
                                 ->actions([
                                     \Filament\Notifications\Actions\Action::make('download')
@@ -147,7 +220,7 @@ class CosechaResource extends Resource
                                 ->duration(15000)
                                 ->send();
                         } catch (\Exception $e) {
-                            \Log::error('Error generando reporte: ' . $e->getMessage());
+                            \Log::error('Error generando reporte de cosecha: ' . $e->getMessage());
                             \Filament\Notifications\Notification::make()
                                 ->title('Error al generar reporte')
                                 ->body('Error: ' . $e->getMessage())
@@ -155,38 +228,74 @@ class CosechaResource extends Resource
                                 ->send();
                         }
                     })
-                    ->color('success'),
+                    ->color('success')
+                    ->visible(fn() => auth()->user()?->tienePermiso('cosecha.ver') ?? false),
             ])
             ->bulkActions([
-                Tables\Actions\DeleteBulkAction::make()->visible(fn() => auth()->user()?->tienePermiso('cosecha.eliminar') ?? false),
+                Tables\Actions\DeleteBulkAction::make()
+                    ->visible(fn() => auth()->user()?->tienePermiso('cosecha.eliminar') ?? false),
 
-                // Acción bulk para generar reportes
+                // Acción bulk para generar reportes con límite
                 Tables\Actions\BulkAction::make('generar_reporte_bulk')
-                    ->label('Generar Reportes')
+                    ->label('Generar PDFs')
                     ->icon('heroicon-o-printer')
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Reporte de Cosechas')
+                    ->modalDescription(function (Collection $records) {
+                        $count = $records->count();
+                        $limit = 50; // Límite más bajo para cosechas por las relaciones
+                        
+                        if ($count > $limit) {
+                            return "⚠️ ADVERTENCIA: Has seleccionado {$count} registros. Para evitar problemas de memoria, se procesarán solo los primeros {$limit} registros. Te recomendamos usar filtros para reducir la selección.";
+                        }
+                        
+                        return "Se generará un PDF con {$count} cosechas seleccionadas.";
+                    })
+                    ->modalSubmitActionLabel('Generar PDF')
                     ->action(function (Collection $records) {
+                        $limit = 50; // Límite más conservador para cosechas
+                        $originalCount = $records->count();
+                        
+                        // Limitar registros si excede el límite
+                        if ($originalCount > $limit) {
+                            $records = $records->take($limit);
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Información')
+                                ->body("Se limitó el reporte a {$limit} registros de {$originalCount} seleccionados para evitar problemas de memoria.")
+                                ->warning()
+                                ->duration(5000)
+                                ->send();
+                        }
+
                         try {
+                            // Cargar relaciones de forma optimizada
+                            $recordsWithRelations = Cosecha::whereIn('cosecha_id', $records->pluck('cosecha_id'))
+                                ->with(['unidadProduccion:unidad_id,codigo_unidad'])
+                                ->get();
+
                             $reporteGenerador = new ReporteGenerador();
                             $downloadUrl = $reporteGenerador->generarReporte(
-                                registros: $records,
+                                registros: $recordsWithRelations,
                                 titulo: 'Reporte de Cosechas',
                                 columnas: [
-                                    'unidadProduccion.codigo_unidad' => 'Unidad de Producción',
+                                    'unidad_codigo' => 'Unidad de Producción',
                                     'numero_cosecha' => 'N° Cosecha',
-                                    'peso_cosecha_gramos' => 'Peso (g)',
-                                    'eficiencia_biologica_calculada' => 'Eficiencia (%)',
-                                    'fecha_cosecha' => 'Fecha',
+                                    'peso_formato' => 'Peso',
+                                    'eficiencia_formato' => 'Eficiencia Biológica',
+                                    'fecha_formato' => 'Fecha de Cosecha',
                                 ],
                                 nombreArchivo: 'reportes_cosechas_' . date('Y-m-d_H-i-s') . '.pdf'
                             );
 
                             \Filament\Notifications\Notification::make()
                                 ->title('Reportes generados exitosamente')
-                                ->body('Se procesaron ' . $records->count() . ' registros.')
+                                ->body('Se procesaron ' . $recordsWithRelations->count() . ' cosechas.' . 
+                                      ($originalCount > $limit ? " (Limitado de {$originalCount} registros)" : ''))
                                 ->success()
                                 ->actions([
                                     \Filament\Notifications\Actions\Action::make('download')
-                                        ->label('Ver PDF')
+                                        ->label('Ver PDFs')
                                         ->url($downloadUrl)
                                         ->openUrlInNewTab()
                                         ->button()
@@ -194,7 +303,7 @@ class CosechaResource extends Resource
                                 ->duration(15000)
                                 ->send();
                         } catch (\Exception $e) {
-                            \Log::error('Error generando reportes: ' . $e->getMessage());
+                            \Log::error('Error generando reportes de cosechas: ' . $e->getMessage());
                             \Filament\Notifications\Notification::make()
                                 ->title('Error al generar reportes')
                                 ->body('Error: ' . $e->getMessage())
@@ -202,8 +311,12 @@ class CosechaResource extends Resource
                                 ->send();
                         }
                     })
-                    ->color('success'),
-            ]);
+                    ->color('success')
+                    ->visible(fn() => auth()->user()?->tienePermiso('cosecha.ver') ?? false),
+            ])
+            ->persistSortInSession()
+            ->persistSearchInSession()
+            ->persistFiltersInSession();
     }
 
     public static function getRelations(): array
